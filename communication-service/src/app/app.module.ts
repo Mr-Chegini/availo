@@ -20,6 +20,12 @@ import { EmailModule } from './email/email.module';
         RABBITMQ_CALL_REQUESTED_QUEUE: Joi.string().default(
           'communication.call-requested',
         ),
+        RABBITMQ_CALL_APPROVED_QUEUE: Joi.string().default(
+          'communication.call-approved',
+        ),
+        RABBITMQ_CALL_REJECTED_QUEUE: Joi.string().default(
+          'communication.call-rejected',
+        ),
       }),
     }),
 
