@@ -1,14 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-  CallRequestStatus,
-  CreateCallRequestDto,
-} from '@org/shared-types';
-import {
-  CallRequest,
-  CallRequestDocument,
-} from './call-request.schema';
+import { CallRequestStatus, CreateCallRequestDto } from '@org/shared-types';
+import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 
 @Injectable()
@@ -32,7 +26,16 @@ export class CallRequestsService {
     }
 
     this.validateScheduledAt(scheduledAt);
-    
+
+    const existingCallRequest = await this.callRequestModel.exists({
+      scheduledAt,
+      status: CallRequestStatus.REQUESTED,
+    });
+
+    if (existingCallRequest) {
+      throw new BadRequestException('This time slot is already reserved');
+    }
+
     const callRequest = await this.callRequestModel.create({
       email: dto.email,
       phoneNumber: dto.phoneNumber,
@@ -53,44 +56,49 @@ export class CallRequestsService {
   }
 
   private validateScheduledAt(scheduledAt: Date): void {
-  const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
-  const scheduledInIstanbul = DateTime.fromJSDate(scheduledAt).setZone(
-    'Europe/Istanbul',
-  );
+    const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
+    const scheduledInIstanbul =
+      DateTime.fromJSDate(scheduledAt).setZone('Europe/Istanbul');
 
-  if (scheduledInIstanbul <= nowInIstanbul) {
-    throw new BadRequestException('Call must be scheduled for a future date');
+    if (scheduledInIstanbul <= nowInIstanbul) {
+      throw new BadRequestException('Call must be scheduled for a future date');
+    }
+
+    if (scheduledInIstanbul.hasSame(nowInIstanbul, 'day')) {
+      throw new BadRequestException('Same-day bookings are not allowed');
+    }
+
+    const weekday = scheduledInIstanbul.weekday;
+
+    if (weekday === 6 || weekday === 7) {
+      throw new BadRequestException(
+        'Calls can only be booked Monday to Friday',
+      );
+    }
+
+    const hour = scheduledInIstanbul.hour;
+    const minute = scheduledInIstanbul.minute;
+
+    const isInsideWorkingHours =
+      hour >= 10 && (hour < 18 || (hour === 18 && minute === 0));
+
+    if (!isInsideWorkingHours) {
+      throw new BadRequestException(
+        'Calls can only be booked between 10:00 and 18:00 Istanbul time',
+      );
+    }
+
+    if (minute !== 0 && minute !== 30) {
+      throw new BadRequestException('Calls must start on a 30-minute slot');
+    }
+
+    if (
+      scheduledInIstanbul.second !== 0 ||
+      scheduledInIstanbul.millisecond !== 0
+    ) {
+      throw new BadRequestException(
+        'Call time must not include seconds or milliseconds',
+      );
+    }
   }
-
-  if (scheduledInIstanbul.hasSame(nowInIstanbul, 'day')) {
-    throw new BadRequestException('Same-day bookings are not allowed');
-  }
-
-  const weekday = scheduledInIstanbul.weekday;
-
-  if (weekday === 6 || weekday === 7) {
-    throw new BadRequestException('Calls can only be booked Monday to Friday');
-  }
-
-  const hour = scheduledInIstanbul.hour;
-  const minute = scheduledInIstanbul.minute;
-
-  const isInsideWorkingHours =
-    hour >= 10 && (hour < 18 || (hour === 18 && minute === 0));
-
-  if (!isInsideWorkingHours) {
-    throw new BadRequestException(
-      'Calls can only be booked between 10:00 and 18:00 Istanbul time',
-    );
-  }
-
-  if (minute !== 0 && minute !== 30) {
-    throw new BadRequestException('Calls must start on a 30-minute slot');
-  }
-
-  if (scheduledInIstanbul.second !== 0 || scheduledInIstanbul.millisecond !== 0) {
-    throw new BadRequestException('Call time must not include seconds or milliseconds');
-  }
-}
-
 }

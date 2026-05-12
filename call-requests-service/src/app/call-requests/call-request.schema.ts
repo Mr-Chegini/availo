@@ -34,3 +34,7 @@ export class CallRequest {
 }
 
 export const CallRequestSchema = SchemaFactory.createForClass(CallRequest);
+CallRequestSchema.index(
+  { scheduledAt: 1, status: 1 },
+  { name: 'idx_call_requests_scheduled_at_status' },
+);
