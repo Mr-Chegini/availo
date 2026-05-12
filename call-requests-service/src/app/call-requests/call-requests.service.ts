@@ -1,7 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CallRequestStatus, CreateCallRequestDto } from '@org/shared-types';
+import {
+  AvailabilitySlotDto,
+  CallRequestStatus,
+  CreateCallRequestDto,
+} from '@org/shared-types';
 import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 
@@ -100,5 +104,78 @@ export class CallRequestsService {
         'Call time must not include seconds or milliseconds',
       );
     }
+  }
+
+  async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
+    const day = DateTime.fromISO(date, {
+      zone: 'Europe/Istanbul',
+    });
+
+    if (!day.isValid) {
+      throw new BadRequestException('date must be a valid ISO date');
+    }
+
+    const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
+
+    if (
+      day.hasSame(nowInIstanbul, 'day') ||
+      day < nowInIstanbul.startOf('day')
+    ) {
+      throw new BadRequestException(
+        'Availability is only available for future dates',
+      );
+    }
+
+    if (day.weekday === 6 || day.weekday === 7) {
+      return [];
+    }
+
+    const startOfWorkingDay = day.set({
+      hour: 10,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    });
+
+    const endOfWorkingDay = day.set({
+      hour: 18,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    });
+
+    const existingCallRequests = await this.callRequestModel
+      .find({
+        scheduledAt: {
+          $gte: startOfWorkingDay.toUTC().toJSDate(),
+          $lt: endOfWorkingDay.toUTC().toJSDate(),
+        },
+        status: CallRequestStatus.REQUESTED,
+      })
+      .select('scheduledAt')
+      .lean();
+
+    const reservedTimes = new Set(
+      existingCallRequests.map((callRequest) =>
+        callRequest.scheduledAt.toISOString(),
+      ),
+    );
+
+    const slots: AvailabilitySlotDto[] = [];
+
+    let currentSlot = startOfWorkingDay;
+
+    while (currentSlot < endOfWorkingDay) {
+      const scheduledAt = currentSlot.toUTC().toJSDate().toISOString();
+
+      slots.push({
+        scheduledAt,
+        available: !reservedTimes.has(scheduledAt),
+      });
+
+      currentSlot = currentSlot.plus({ minutes: 30 });
+    }
+
+    return slots;
   }
 }

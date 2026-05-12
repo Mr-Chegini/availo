@@ -14,3 +14,8 @@ export interface CallRequestedEvent {
   phoneNumber: string;
   scheduledAt: string;
 }
+
+export interface AvailabilitySlotDto {
+  scheduledAt: string;
+  available: boolean;
+}
