@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { CreateCallRequestDto } from '@org/shared-types';
 import { CallRequestsService } from './call-requests.service';
 
@@ -19,5 +27,15 @@ export class CallRequestsController {
   @Get()
   findAll() {
     return this.callRequestsService.findAll();
+  }
+
+  @Patch(':id/approve')
+  approve(@Param('id') id: string) {
+    return this.callRequestsService.approve(id);
+  }
+
+  @Patch(':id/reject')
+  reject(@Param('id') id: string) {
+    return this.callRequestsService.reject(id);
   }
 }

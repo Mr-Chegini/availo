@@ -1,5 +1,7 @@
 export enum CallRequestStatus {
   REQUESTED = 'REQUESTED',
+  SCHEDULED = 'SCHEDULED',
+  REJECTED = 'REJECTED',
 }
 
 export interface CreateCallRequestDto {
@@ -26,6 +28,8 @@ export enum RabbitmqExchange {
 
 export enum RabbitmqRoutingKey {
   CALL_REQUESTED = 'call.requested',
+  CALL_APPROVED = 'call.approved',
+  CALL_REJECTED = 'call.rejected',
 }
 
 export interface CallRequestResponseDto {
@@ -37,4 +41,16 @@ export interface CallRequestResponseDto {
   adminNote?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CallApprovedEvent {
+  callRequestId: string;
+  email: string;
+  phoneNumber: string;
+  scheduledAt: string;
+}
+
+export interface CallRejectedEvent {
+  callRequestId: string;
+  email: string;
 }

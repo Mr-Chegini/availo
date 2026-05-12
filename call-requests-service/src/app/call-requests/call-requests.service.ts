@@ -1,8 +1,15 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
   AvailabilitySlotDto,
+  CallApprovedEvent,
+  CallRejectedEvent,
   CallRequestedEvent,
   CallRequestResponseDto,
   CallRequestStatus,
@@ -216,5 +223,61 @@ export class CallRequestsService {
       createdAt: callRequest.createdAt.toISOString(),
       updatedAt: callRequest.updatedAt.toISOString(),
     };
+  }
+
+  async approve(id: string): Promise<CallRequestResponseDto> {
+    const callRequest = await this.callRequestModel.findById(id).exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    if (callRequest.status !== CallRequestStatus.REQUESTED) {
+      throw new ConflictException('Only requested calls can be approved');
+    }
+
+    callRequest.status = CallRequestStatus.SCHEDULED;
+    await callRequest.save();
+
+    const event: CallApprovedEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_APPROVED,
+      event,
+    );
+
+    return this.toResponse(callRequest);
+  }
+
+  async reject(id: string): Promise<CallRequestResponseDto> {
+    const callRequest = await this.callRequestModel.findById(id).exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    if (callRequest.status !== CallRequestStatus.REQUESTED) {
+      throw new ConflictException('Only requested calls can be rejected');
+    }
+
+    callRequest.status = CallRequestStatus.REJECTED;
+    await callRequest.save();
+
+    const event: CallRejectedEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_REJECTED,
+      event,
+    );
+
+    return this.toResponse(callRequest);
   }
 }
