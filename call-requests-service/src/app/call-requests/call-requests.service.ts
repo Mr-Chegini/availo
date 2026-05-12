@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import {
   AvailabilitySlotDto,
   CallRequestedEvent,
+  CallRequestResponseDto,
   CallRequestStatus,
   CreateCallRequestDto,
   RabbitmqRoutingKey,
@@ -193,5 +194,27 @@ export class CallRequestsService {
     }
 
     return slots;
+  }
+
+  async findAll(): Promise<CallRequestResponseDto[]> {
+    const callRequests = await this.callRequestModel
+      .find()
+      .sort({ scheduledAt: 1 })
+      .exec();
+
+    return callRequests.map((callRequest) => this.toResponse(callRequest));
+  }
+
+  private toResponse(callRequest: CallRequestDocument): CallRequestResponseDto {
+    return {
+      id: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+      status: callRequest.status,
+      adminNote: callRequest.adminNote,
+      createdAt: callRequest.createdAt.toISOString(),
+      updatedAt: callRequest.updatedAt.toISOString(),
+    };
   }
 }

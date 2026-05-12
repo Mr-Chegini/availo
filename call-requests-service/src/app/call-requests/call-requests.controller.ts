@@ -15,4 +15,9 @@ export class CallRequestsController {
   getAvailability(@Query('date') date: string) {
     return this.callRequestsService.getAvailability(date);
   }
+
+  @Get()
+  findAll() {
+    return this.callRequestsService.findAll();
+  }
 }

@@ -27,3 +27,14 @@ export enum RabbitmqExchange {
 export enum RabbitmqRoutingKey {
   CALL_REQUESTED = 'call.requested',
 }
+
+export interface CallRequestResponseDto {
+  id: string;
+  email: string;
+  phoneNumber: string;
+  scheduledAt: string;
+  status: CallRequestStatus;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
