@@ -3,17 +3,21 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
   AvailabilitySlotDto,
+  CallRequestedEvent,
   CallRequestStatus,
   CreateCallRequestDto,
+  RabbitmqRoutingKey,
 } from '@org/shared-types';
 import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
+import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 
 @Injectable()
 export class CallRequestsService {
   constructor(
     @InjectModel(CallRequest.name)
     private readonly callRequestModel: Model<CallRequestDocument>,
+    private readonly rabbitmqPublisherService: RabbitmqPublisherService,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
@@ -46,6 +50,18 @@ export class CallRequestsService {
       scheduledAt,
       status: CallRequestStatus.REQUESTED,
     });
+
+    const event: CallRequestedEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_REQUESTED,
+      event,
+    );
 
     return {
       id: callRequest.id,

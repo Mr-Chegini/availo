@@ -19,3 +19,11 @@ export interface AvailabilitySlotDto {
   scheduledAt: string;
   available: boolean;
 }
+
+export enum RabbitmqExchange {
+  CALLS = 'calls.exchange',
+}
+
+export enum RabbitmqRoutingKey {
+  CALL_REQUESTED = 'call.requested',
+}

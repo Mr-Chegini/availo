@@ -6,6 +6,7 @@ import {
 } from './call-request.schema';
 import { CallRequestsController } from './call-requests.controller';
 import { CallRequestsService } from './call-requests.service';
+import { MessagingModule } from '../messaging/messaging.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CallRequestsService } from './call-requests.service';
         schema: CallRequestSchema,
       },
     ]),
+    MessagingModule
   ],
   controllers: [CallRequestsController],
   providers: [CallRequestsService],

@@ -17,6 +17,9 @@ import { CallRequestsModule } from './call-requests/call-requests.module';
         CALL_REQUESTS_SERVICE_PORT: Joi.number().default(3000),
 
         MONGODB_URI: Joi.string().required(),
+
+        RABBITMQ_URL: Joi.string().required(),
+        RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
       }),
     }),
 
