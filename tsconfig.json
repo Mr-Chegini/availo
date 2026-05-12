@@ -2,5 +2,21 @@
   "extends": "./tsconfig.base.json",
   "compileOnSave": false,
   "files": [],
-  "references": []
+  "references": [
+    {
+      "path": "./call-requests-service-e2e"
+    },
+    {
+      "path": "./call-requests-service"
+    },
+    {
+      "path": "./shared-types"
+    },
+    {
+      "path": "./scheduler-service"
+    },
+    {
+      "path": "./communication-service"
+    }
+  ]
 }
