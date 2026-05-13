@@ -89,6 +89,25 @@ export function AdminView() {
     );
   }
 
+  function handleReject(callRequestId: string) {
+    if (!window.confirm('Are you sure you want to reject this request?')) {
+      return;
+    }
+
+    void runAction(
+      () => rejectCallRequest(callRequestId),
+      'Call request rejected.',
+    );
+  }
+
+  function handleCancel(callRequestId: string) {
+    if (!window.confirm('Are you sure you want to cancel this call?')) {
+      return;
+    }
+
+    void runAction(() => cancelCallRequest(callRequestId), 'Call canceled.');
+  }
+
   return (
     <section className="page-card">
       <h1 className="page-title">Admin View</h1>
@@ -153,12 +172,7 @@ export function AdminView() {
                   className="danger-button"
                   type="button"
                   disabled={callRequest.status !== 'REQUESTED'}
-                  onClick={() =>
-                    void runAction(
-                      () => rejectCallRequest(callRequest.id),
-                      'Call request rejected.',
-                    )
-                  }
+                  onClick={() => handleReject(callRequest.id)}
                 >
                   Reject
                 </button>
@@ -181,12 +195,7 @@ export function AdminView() {
                   className="danger-button"
                   type="button"
                   disabled={callRequest.status !== 'SCHEDULED'}
-                  onClick={() =>
-                    void runAction(
-                      () => cancelCallRequest(callRequest.id),
-                      'Call canceled.',
-                    )
-                  }
+                  onClick={() => handleCancel(callRequest.id)}
                 >
                   Cancel
                 </button>

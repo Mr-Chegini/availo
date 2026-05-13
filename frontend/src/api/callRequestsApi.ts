@@ -19,6 +19,21 @@ export interface AvailabilitySlot {
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    const contentType = response.headers.get('content-type');
+
+    if (contentType?.includes('application/json')) {
+      const errorBody = (await response.json()) as {
+        message?: string | string[];
+        error?: string;
+      };
+
+      const message = Array.isArray(errorBody.message)
+        ? errorBody.message.join(', ')
+        : errorBody.message || errorBody.error || 'Request failed';
+
+      throw new Error(message);
+    }
+
     throw new Error(await response.text());
   }
 

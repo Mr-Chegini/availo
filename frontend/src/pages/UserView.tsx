@@ -26,6 +26,9 @@ export function UserView() {
 
   function handleDateChange(event: ChangeEvent<HTMLInputElement>) {
     setDate(event.currentTarget.value);
+    setSelectedSlot('');
+    setSlots([]);
+    setMessage('');
   }
 
   function handleEmailChange(event: ChangeEvent<HTMLInputElement>) {
@@ -54,6 +57,7 @@ export function UserView() {
         setMessage('No available slots for this date.');
       }
     } catch (error) {
+      setSlots([]);
       setMessage(
         error instanceof Error ? error.message : 'Failed to load availability.',
       );
@@ -65,8 +69,21 @@ export function UserView() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    const trimmedEmail = email.trim();
+    const trimmedPhoneNumber = phoneNumber.trim();
+
     if (!selectedSlot) {
       setMessage('Please select a time slot.');
+      return;
+    }
+
+    if (!trimmedEmail) {
+      setMessage('Email is required.');
+      return;
+    }
+
+    if (!trimmedPhoneNumber) {
+      setMessage('Phone number is required.');
       return;
     }
 
@@ -75,8 +92,8 @@ export function UserView() {
       setIsSubmitting(true);
 
       await createCallRequest({
-        email,
-        phoneNumber,
+        email: trimmedEmail,
+        phoneNumber: trimmedPhoneNumber,
         scheduledAt: selectedSlot,
       });
 
@@ -125,6 +142,7 @@ export function UserView() {
           className="primary-button"
           type="button"
           onClick={handleLoadAvailability}
+          disabled={isLoadingAvailability}
         >
           {isLoadingAvailability ? 'Loading...' : 'Load availability'}
         </button>
@@ -196,7 +214,7 @@ export function UserView() {
         <button
           className="primary-button"
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !selectedSlot}
         >
           {isSubmitting ? 'Submitting...' : 'Submit request'}
         </button>
