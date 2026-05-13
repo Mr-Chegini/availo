@@ -23,6 +23,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: backend-runner
       args:
         APP_NAME: call-requests-service
     container_name: call-requests-service
@@ -42,6 +43,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: backend-runner
       args:
         APP_NAME: scheduler-service
     container_name: scheduler-service
@@ -62,6 +64,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      target: backend-runner
       args:
         APP_NAME: communication-service
     container_name: communication-service
@@ -81,6 +84,19 @@ services:
       ADMIN_EMAIL: admin@example.com
     depends_on:
       - rabbitmq
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: frontend-runner
+      args:
+        APP_NAME: frontend
+    container_name: call-reservation-frontend
+    ports:
+      - '4200:80'
+    depends_on:
+      - call-requests-service
 
 volumes:
   mongodb_data:

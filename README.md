@@ -313,6 +313,7 @@ Planned views:
   - Edit admin notes
 
 The backend APIs are prepared for these frontend actions.
+Frontend: http://localhost:4200
 
 ## Commit Convention
 
