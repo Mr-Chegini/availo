@@ -1,4 +1,5 @@
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { AdminView } from '../pages/AdminView';
 import { UserView } from '../pages/UserView';
 
 export function App() {
@@ -20,15 +21,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/user" replace />} />
         <Route path="/user" element={<UserView />} />
-        <Route
-          path="/admin"
-          element={
-            <section>
-              <h1>Admin View</h1>
-              <p>Admin dashboard will be implemented next.</p>
-            </section>
-          }
-        />
+        <Route path="/admin" element={<AdminView />} />
       </Routes>
     </div>
   );
