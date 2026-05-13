@@ -16,6 +16,7 @@ import {
   CallRequestStatus,
   CreateCallRequestDto,
   RabbitmqRoutingKey,
+  UpdateAdminNoteDto,
 } from '@org/shared-types';
 import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
@@ -213,19 +214,6 @@ export class CallRequestsService {
     return callRequests.map((callRequest) => this.toResponse(callRequest));
   }
 
-  private toResponse(callRequest: CallRequestDocument): CallRequestResponseDto {
-    return {
-      id: callRequest.id,
-      email: callRequest.email,
-      phoneNumber: callRequest.phoneNumber,
-      scheduledAt: callRequest.scheduledAt.toISOString(),
-      status: callRequest.status,
-      adminNote: callRequest.adminNote,
-      createdAt: callRequest.createdAt.toISOString(),
-      updatedAt: callRequest.updatedAt.toISOString(),
-    };
-  }
-
   async approve(id: string): Promise<CallRequestResponseDto> {
     const callRequest = await this.callRequestModel.findById(id).exec();
 
@@ -283,47 +271,78 @@ export class CallRequestsService {
   }
 
   async markAsCalled(id: string): Promise<CallRequestResponseDto> {
-  const callRequest = await this.callRequestModel.findById(id).exec();
+    const callRequest = await this.callRequestModel.findById(id).exec();
 
-  if (!callRequest) {
-    throw new NotFoundException('Call request not found');
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    if (callRequest.status !== CallRequestStatus.SCHEDULED) {
+      throw new ConflictException(
+        'Only scheduled calls can be marked as called',
+      );
+    }
+
+    callRequest.status = CallRequestStatus.CALLED;
+    await callRequest.save();
+
+    return this.toResponse(callRequest);
   }
 
-  if (callRequest.status !== CallRequestStatus.SCHEDULED) {
-    throw new ConflictException('Only scheduled calls can be marked as called');
+  async cancel(id: string): Promise<CallRequestResponseDto> {
+    const callRequest = await this.callRequestModel.findById(id).exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    if (callRequest.status !== CallRequestStatus.SCHEDULED) {
+      throw new ConflictException('Only scheduled calls can be canceled');
+    }
+
+    callRequest.status = CallRequestStatus.CANCELED;
+    await callRequest.save();
+
+    const event: CallCanceledEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_CANCELED,
+      event,
+    );
+
+    return this.toResponse(callRequest);
   }
 
-  callRequest.status = CallRequestStatus.CALLED;
-  await callRequest.save();
+  async updateAdminNote(
+    id: string,
+    dto: UpdateAdminNoteDto,
+  ): Promise<CallRequestResponseDto> {
+    const callRequest = await this.callRequestModel.findById(id).exec();
 
-  return this.toResponse(callRequest);
-}
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
 
-async cancel(id: string): Promise<CallRequestResponseDto> {
-  const callRequest = await this.callRequestModel.findById(id).exec();
+    callRequest.adminNote = dto.adminNote;
+    await callRequest.save();
 
-  if (!callRequest) {
-    throw new NotFoundException('Call request not found');
+    return this.toResponse(callRequest);
   }
 
-  if (callRequest.status !== CallRequestStatus.SCHEDULED) {
-    throw new ConflictException('Only scheduled calls can be canceled');
+  private toResponse(callRequest: CallRequestDocument): CallRequestResponseDto {
+    return {
+      id: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+      status: callRequest.status,
+      adminNote: callRequest.adminNote,
+      createdAt: callRequest.createdAt.toISOString(),
+      updatedAt: callRequest.updatedAt.toISOString(),
+    };
   }
-
-  callRequest.status = CallRequestStatus.CANCELED;
-  await callRequest.save();
-
-  const event: CallCanceledEvent = {
-    callRequestId: callRequest.id,
-    email: callRequest.email,
-    scheduledAt: callRequest.scheduledAt.toISOString(),
-  };
-
-  await this.rabbitmqPublisherService.publish(
-    RabbitmqRoutingKey.CALL_CANCELED,
-    event,
-  );
-
-  return this.toResponse(callRequest);
-}
 }

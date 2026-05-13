@@ -7,7 +7,10 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import type { CreateCallRequestDto } from '@org/shared-types';
+import type {
+  UpdateAdminNoteDto,
+  CreateCallRequestDto,
+} from '@org/shared-types';
 import { CallRequestsService } from './call-requests.service';
 
 @Controller('call-requests')
@@ -47,5 +50,10 @@ export class CallRequestsController {
   @Patch(':id/cancel')
   cancel(@Param('id') id: string) {
     return this.callRequestsService.cancel(id);
+  }
+
+  @Patch(':id/admin-note')
+  updateAdminNote(@Param('id') id: string, @Body() dto: UpdateAdminNoteDto) {
+    return this.callRequestsService.updateAdminNote(id, dto);
   }
 }

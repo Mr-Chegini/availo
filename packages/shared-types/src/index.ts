@@ -82,3 +82,7 @@ export interface DailyDigestEvent {
     scheduledAt: string;
   }>;
 }
+
+export interface UpdateAdminNoteDto {
+  adminNote: string;
+}
