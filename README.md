@@ -2,17 +2,19 @@
 
 Distributed backend assignment for reserving 30-minute calls with an admin.
 
-The system is built as an Nx monorepo with three NestJS services and one shared package:
+The system is built as an Nx monorepo with three NestJS services, one shared package, and a simple frontend application.
 
 - `call-requests-service`
 - `scheduler-service`
 - `communication-service`
+- `frontend`
 - `@org/shared-types`
 
 ## Tech Stack
 
 - Nx monorepo
 - NestJS
+- React
 - MongoDB
 - RabbitMQ
 - Docker / Docker Compose
@@ -115,6 +117,29 @@ Or while running Compose:
 docker compose logs -f communication-service
 ```
 
+### Frontend
+
+A simple React frontend is included to demonstrate the backend functionality.
+
+Frontend URL:
+
+```text
+http://localhost:4200
+```
+
+Views:
+
+- User View:
+  - Show availability
+  - Submit a call request
+- Admin View:
+  - List call requests
+  - Approve/reject requests
+  - Mark scheduled calls as called/canceled
+  - Edit admin notes
+
+The frontend calls the Call Requests Service API.
+
 ## Shared Types
 
 Reusable DTOs, enums, and RabbitMQ event payloads live in:
@@ -186,6 +211,7 @@ RabbitMQ Management UI:  http://localhost:15672
 Call Requests Service:   http://localhost:3000/api
 Scheduler Service:       http://localhost:3001
 Communication Service:   http://localhost:3002
+Frontend:                http://localhost:4200
 ```
 
 RabbitMQ dashboard login:
@@ -203,17 +229,25 @@ Start MongoDB and RabbitMQ manually, then run services separately:
 npx nx serve @org/call-requests-service
 npx nx serve @org/scheduler-service
 npx nx serve @org/communication-service
+npx nx serve frontend
+```
+
+Frontend:
+
+```text
+http://localhost:4200
 ```
 
 ## Build Commands
 
-Build all main services:
+Build all main projects:
 
 ```bash
 npx nx build @org/shared-types
 npx nx build @org/call-requests-service
 npx nx build @org/scheduler-service
 npx nx build @org/communication-service
+npx nx build frontend
 ```
 
 ## Booking Rules
@@ -296,24 +330,6 @@ CALL_REMINDER_CUSTOMER
 CALL_REMINDER_ADMIN
 DAILY_DIGEST
 ```
-
-## Frontend Status
-
-A simple frontend/admin UI is part of the assignment scope.
-
-Planned views:
-
-- User View:
-  - Show availability
-  - Submit a call request
-- Admin View:
-  - List call requests
-  - Approve/reject requests
-  - Mark scheduled calls as called/canceled
-  - Edit admin notes
-
-The backend APIs are prepared for these frontend actions.
-Frontend: http://localhost:4200
 
 ## Commit Convention
 
