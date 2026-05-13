@@ -29,6 +29,11 @@ import { EmailModule } from './email/email.module';
         RABBITMQ_CALL_CANCELED_QUEUE: Joi.string().default(
           'communication.call-canceled',
         ),
+        RABBITMQ_CALL_REMINDER_QUEUE: Joi.string().default(
+          'communication.call-reminder',
+        ),
+
+        ADMIN_EMAIL: Joi.string().email().required(),
       }),
     }),
 

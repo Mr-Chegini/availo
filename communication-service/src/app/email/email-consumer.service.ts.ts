@@ -10,6 +10,7 @@ import type {
   CallApprovedEvent,
   CallCanceledEvent,
   CallRejectedEvent,
+  CallReminderEvent,
   CallRequestedEvent,
 } from '@org/shared-types';
 import * as amqp from 'amqplib';
@@ -59,6 +60,11 @@ export class EmailConsumerService
       'communication.call-canceled',
     );
 
+    const callReminderQueue = this.configService.get<string>(
+      'RABBITMQ_CALL_REMINDER_QUEUE',
+      'communication.call-reminder',
+    );
+
     await this.bindAndConsumeQueue<CallRequestedEvent>(
       callRequestedQueue,
       RabbitmqRoutingKey.CALL_REQUESTED,
@@ -81,6 +87,12 @@ export class EmailConsumerService
       callCanceledQueue,
       RabbitmqRoutingKey.CALL_CANCELED,
       (payload) => this.sendCallCanceledEmail(payload),
+    );
+
+    await this.bindAndConsumeQueue<CallReminderEvent>(
+      callReminderQueue,
+      RabbitmqRoutingKey.CALL_REMINDER,
+      (payload) => this.sendCallReminderEmails(payload),
     );
   }
 
@@ -168,6 +180,26 @@ export class EmailConsumerService
       to: payload.email,
       subject: 'Your scheduled call was canceled',
       body: `Your scheduled call for ${payload.scheduledAt} was canceled.`,
+      payload,
+    });
+  }
+
+  private sendCallReminderEmails(payload: CallReminderEvent): void {
+    const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
+
+    this.logger.log({
+      template: 'CALL_REMINDER_CUSTOMER',
+      to: payload.email,
+      subject: 'Reminder: your call is coming up',
+      body: `Reminder: your call is scheduled for ${payload.scheduledAt}.`,
+      payload,
+    });
+
+    this.logger.log({
+      template: 'CALL_REMINDER_ADMIN',
+      to: adminEmail,
+      subject: 'Reminder: scheduled customer call',
+      body: `Reminder: call with ${payload.email} / ${payload.phoneNumber} is scheduled for ${payload.scheduledAt}.`,
       payload,
     });
   }
