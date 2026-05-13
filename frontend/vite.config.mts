@@ -8,11 +8,11 @@ export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../node_modules/.vite/frontend',
   server: {
-    port: 3000,
+    port: 4200,
     host: 'localhost',
   },
   preview: {
-    port: 3000,
+    port: 4200,
     host: 'localhost',
   },
   plugins: [react(), nxViteTsPaths(), nxCopyAssetsPlugin(['*.md'])],
