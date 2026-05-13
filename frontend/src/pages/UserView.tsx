@@ -101,55 +101,71 @@ export function UserView() {
   }
 
   return (
-    <section>
-      <h1>User View</h1>
-      <p>
+    <section className="page-card">
+      <h1 className="page-title">User View</h1>
+      <p className="page-description">
         Choose a date, select an available 30-minute slot, and request a call.
       </p>
 
-      <div>
-        <label htmlFor="date">Date</label>
-        <br />
-        <input id="date" type="date" value={date} onChange={handleDateChange} />
-        <button type="button" onClick={handleLoadAvailability}>
+      <div className="form-grid">
+        <div className="form-row">
+          <label className="form-label" htmlFor="date">
+            Date
+          </label>
+          <input
+            className="form-input"
+            id="date"
+            type="date"
+            value={date}
+            onChange={handleDateChange}
+          />
+        </div>
+
+        <button
+          className="primary-button"
+          type="button"
+          onClick={handleLoadAvailability}
+        >
           {isLoadingAvailability ? 'Loading...' : 'Load availability'}
         </button>
       </div>
 
-      <h2>Available slots</h2>
+      <h2 className="section-title">Available slots</h2>
 
-      {slots.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+      {slots.length > 0 ? (
+        <div className="slot-grid">
           {slots.map((slot) => (
             <button
               key={slot.scheduledAt}
               type="button"
               disabled={!slot.available}
               onClick={() => setSelectedSlot(slot.scheduledAt)}
-              style={{
-                padding: '8px 12px',
-                border:
-                  selectedSlot === slot.scheduledAt
-                    ? '2px solid black'
-                    : '1px solid #ccc',
-                opacity: slot.available ? 1 : 0.4,
-                cursor: slot.available ? 'pointer' : 'not-allowed',
-              }}
+              className={[
+                'slot-button',
+                selectedSlot === slot.scheduledAt ? 'slot-button-selected' : '',
+                !slot.available ? 'slot-button-reserved' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
             >
               {formatSlotTime(slot.scheduledAt)}
               {slot.available ? '' : ' - reserved'}
             </button>
           ))}
         </div>
+      ) : (
+        <p>No slots loaded yet.</p>
       )}
 
-      <h2>Reserve selected slot</h2>
+      <h2 className="section-title">Reserve selected slot</h2>
 
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
-          <br />
+      <form className="form-grid" onSubmit={handleSubmit}>
+        <div className="form-row">
+          <label className="form-label" htmlFor="email">
+            Email
+          </label>
           <input
+            className="form-input"
             id="email"
             type="email"
             required
@@ -158,10 +174,12 @@ export function UserView() {
           />
         </div>
 
-        <div>
-          <label htmlFor="phoneNumber">Phone number</label>
-          <br />
+        <div className="form-row">
+          <label className="form-label" htmlFor="phoneNumber">
+            Phone number
+          </label>
           <input
+            className="form-input"
             id="phoneNumber"
             type="tel"
             required
@@ -170,17 +188,21 @@ export function UserView() {
           />
         </div>
 
-        <div>
+        <div className="selected-slot">
           <strong>Selected slot:</strong>{' '}
           {selectedSlot ? formatSlotTime(selectedSlot) : 'None'}
         </div>
 
-        <button type="submit" disabled={isSubmitting}>
+        <button
+          className="primary-button"
+          type="submit"
+          disabled={isSubmitting}
+        >
           {isSubmitting ? 'Submitting...' : 'Submit request'}
         </button>
       </form>
 
-      {message && <p>{message}</p>}
+      {message && <p className="message">{message}</p>}
     </section>
   );
 }
