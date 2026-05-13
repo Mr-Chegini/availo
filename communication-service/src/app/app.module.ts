@@ -26,6 +26,9 @@ import { EmailModule } from './email/email.module';
         RABBITMQ_CALL_REJECTED_QUEUE: Joi.string().default(
           'communication.call-rejected',
         ),
+        RABBITMQ_CALL_CANCELED_QUEUE: Joi.string().default(
+          'communication.call-canceled',
+        ),
       }),
     }),
 

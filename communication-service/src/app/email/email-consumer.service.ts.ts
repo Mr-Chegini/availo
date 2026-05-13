@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { RabbitmqExchange, RabbitmqRoutingKey } from '@org/shared-types';
 import type {
   CallApprovedEvent,
+  CallCanceledEvent,
   CallRejectedEvent,
   CallRequestedEvent,
 } from '@org/shared-types';
@@ -53,6 +54,11 @@ export class EmailConsumerService
       'communication.call-rejected',
     );
 
+    const callCanceledQueue = this.configService.get<string>(
+      'RABBITMQ_CALL_CANCELED_QUEUE',
+      'communication.call-canceled',
+    );
+
     await this.bindAndConsumeQueue<CallRequestedEvent>(
       callRequestedQueue,
       RabbitmqRoutingKey.CALL_REQUESTED,
@@ -69,6 +75,12 @@ export class EmailConsumerService
       callRejectedQueue,
       RabbitmqRoutingKey.CALL_REJECTED,
       (payload) => this.sendCallRejectedEmail(payload),
+    );
+
+    await this.bindAndConsumeQueue<CallCanceledEvent>(
+      callCanceledQueue,
+      RabbitmqRoutingKey.CALL_CANCELED,
+      (payload) => this.sendCallCanceledEmail(payload),
     );
   }
 
@@ -146,6 +158,16 @@ export class EmailConsumerService
       to: payload.email,
       subject: 'Your call request was rejected',
       body: 'Your request was rejected by the admin. Please try reserving another time.',
+      payload,
+    });
+  }
+
+  private sendCallCanceledEmail(payload: CallCanceledEvent): void {
+    this.logger.log({
+      template: 'CALL_CANCELED',
+      to: payload.email,
+      subject: 'Your scheduled call was canceled',
+      body: `Your scheduled call for ${payload.scheduledAt} was canceled.`,
       payload,
     });
   }
