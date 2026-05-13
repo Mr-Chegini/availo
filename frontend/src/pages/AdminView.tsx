@@ -43,7 +43,9 @@ export function AdminView() {
       setNotesById(nextNotesById);
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : 'Failed to load call requests.',
+        error instanceof Error
+          ? error.message
+          : 'Failed to load call requests.',
       );
     } finally {
       setIsLoading(false);
@@ -88,34 +90,39 @@ export function AdminView() {
   }
 
   return (
-    <section>
-      <h1>Admin View</h1>
-      <p>Manage call requests and internal admin notes.</p>
+    <section className="page-card">
+      <h1 className="page-title">Admin View</h1>
+      <p className="page-description">
+        Manage call requests, approval actions, call status, and internal notes.
+      </p>
 
-      <button type="button" onClick={loadCallRequests} disabled={isLoading}>
-        {isLoading ? 'Loading...' : 'Refresh'}
+      <button
+        className="primary-button"
+        type="button"
+        onClick={loadCallRequests}
+        disabled={isLoading}
+      >
+        {isLoading ? 'Loading...' : 'Refresh requests'}
       </button>
 
-      {message && <p>{message}</p>}
+      {message && <p className="message">{message}</p>}
 
       {callRequests.length === 0 ? (
-        <p>No call requests found.</p>
+        <p style={{ marginTop: '20px' }}>No call requests found.</p>
       ) : (
-        <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
+        <div className="admin-list">
           {callRequests.map((callRequest) => (
-            <article
-              key={callRequest.id}
-              style={{
-                border: '1px solid #ddd',
-                padding: '16px',
-                borderRadius: '8px',
-              }}
-            >
-              <h2>{callRequest.email}</h2>
+            <article key={callRequest.id} className="admin-card">
+              <div className="admin-card-header">
+                <div>
+                  <h2 className="admin-card-title">{callRequest.email}</h2>
+                  <p style={{ margin: '6px 0 0', color: '#6b7280' }}>
+                    {callRequest.phoneNumber}
+                  </p>
+                </div>
 
-              <p>
-                <strong>Phone:</strong> {callRequest.phoneNumber}
-              </p>
+                <span className="status-badge">{callRequest.status}</span>
+              </div>
 
               <p>
                 <strong>Scheduled at:</strong>{' '}
@@ -123,11 +130,13 @@ export function AdminView() {
               </p>
 
               <p>
-                <strong>Status:</strong> {callRequest.status}
+                <strong>Created at:</strong>{' '}
+                {formatDateTime(callRequest.createdAt)}
               </p>
 
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div className="action-row">
                 <button
+                  className="primary-button"
                   type="button"
                   disabled={callRequest.status !== 'REQUESTED'}
                   onClick={() =>
@@ -141,6 +150,7 @@ export function AdminView() {
                 </button>
 
                 <button
+                  className="danger-button"
                   type="button"
                   disabled={callRequest.status !== 'REQUESTED'}
                   onClick={() =>
@@ -154,6 +164,7 @@ export function AdminView() {
                 </button>
 
                 <button
+                  className="secondary-button"
                   type="button"
                   disabled={callRequest.status !== 'SCHEDULED'}
                   onClick={() =>
@@ -167,6 +178,7 @@ export function AdminView() {
                 </button>
 
                 <button
+                  className="danger-button"
                   type="button"
                   disabled={callRequest.status !== 'SCHEDULED'}
                   onClick={() =>
@@ -180,20 +192,24 @@ export function AdminView() {
                 </button>
               </div>
 
-              <div style={{ marginTop: '12px' }}>
-                <label htmlFor={`admin-note-${callRequest.id}`}>
+              <div className="form-row" style={{ marginTop: '16px' }}>
+                <label
+                  className="form-label"
+                  htmlFor={`admin-note-${callRequest.id}`}
+                >
                   Admin note
                 </label>
-                <br />
+
                 <textarea
+                  className="form-textarea"
                   id={`admin-note-${callRequest.id}`}
                   rows={3}
-                  style={{ width: '100%' }}
                   value={notesById[callRequest.id] ?? ''}
                   onChange={(event) => handleNoteChange(callRequest.id, event)}
                 />
-                <br />
+
                 <button
+                  className="secondary-button"
                   type="button"
                   onClick={() => void handleSaveNote(callRequest.id)}
                 >
