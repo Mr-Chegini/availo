@@ -9,7 +9,8 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"]
   },
   "files": [],
   "include": [],
