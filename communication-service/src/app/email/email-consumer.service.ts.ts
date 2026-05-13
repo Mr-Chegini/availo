@@ -12,6 +12,7 @@ import type {
   CallRejectedEvent,
   CallReminderEvent,
   CallRequestedEvent,
+  DailyDigestEvent,
 } from '@org/shared-types';
 import * as amqp from 'amqplib';
 
@@ -65,6 +66,11 @@ export class EmailConsumerService
       'communication.call-reminder',
     );
 
+    const dailyDigestQueue = this.configService.get<string>(
+      'RABBITMQ_DAILY_DIGEST_QUEUE',
+      'communication.daily-digest',
+    );
+
     await this.bindAndConsumeQueue<CallRequestedEvent>(
       callRequestedQueue,
       RabbitmqRoutingKey.CALL_REQUESTED,
@@ -93,6 +99,12 @@ export class EmailConsumerService
       callReminderQueue,
       RabbitmqRoutingKey.CALL_REMINDER,
       (payload) => this.sendCallReminderEmails(payload),
+    );
+
+    await this.bindAndConsumeQueue<DailyDigestEvent>(
+      dailyDigestQueue,
+      RabbitmqRoutingKey.DAILY_DIGEST,
+      (payload) => this.sendDailyDigestEmail(payload),
     );
   }
 
@@ -200,6 +212,30 @@ export class EmailConsumerService
       to: adminEmail,
       subject: 'Reminder: scheduled customer call',
       body: `Reminder: call with ${payload.email} / ${payload.phoneNumber} is scheduled for ${payload.scheduledAt}.`,
+      payload,
+    });
+  }
+
+  private sendDailyDigestEmail(payload: DailyDigestEvent): void {
+    const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
+
+    const callLines =
+      payload.calls.length === 0
+        ? 'No scheduled calls for today.'
+        : payload.calls
+            .map(
+              (call, index) =>
+                `${index + 1}. ${call.scheduledAt} - ${call.email} - ${
+                  call.phoneNumber
+                }`,
+            )
+            .join('\n');
+
+    this.logger.log({
+      template: 'DAILY_DIGEST',
+      to: adminEmail,
+      subject: `Daily call digest - ${payload.date}`,
+      body: callLines,
       payload,
     });
   }

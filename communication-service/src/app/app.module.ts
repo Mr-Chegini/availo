@@ -33,6 +33,10 @@ import { EmailModule } from './email/email.module';
           'communication.call-reminder',
         ),
 
+        RABBITMQ_DAILY_DIGEST_QUEUE: Joi.string().default(
+          'communication.daily-digest',
+        ),
+
         ADMIN_EMAIL: Joi.string().email().required(),
       }),
     }),
