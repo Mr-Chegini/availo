@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
+  DailyDigestEvent,
   RabbitmqRoutingKey,
   type CallApprovedEvent,
   type CallReminderEvent,
@@ -12,6 +13,7 @@ import {
 } from './scheduler-call.schema';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class SchedulerCallsService {
@@ -78,5 +80,44 @@ export class SchedulerCallsService {
         `Published reminder event for call ${call.callRequestId}`,
       );
     }
+  }
+  
+  @Cron('0 7 * * 1-5', {
+    timeZone: 'Europe/Istanbul',
+  })
+  async publishDailyDigestEvent(): Promise<void> {
+    const todayInIstanbul = DateTime.now().setZone('Europe/Istanbul');
+
+    const startOfDay = todayInIstanbul.startOf('day');
+    const endOfDay = todayInIstanbul.endOf('day');
+
+    const calls = await this.schedulerCallModel
+      .find({
+        scheduledAt: {
+          $gte: startOfDay.toUTC().toJSDate(),
+          $lte: endOfDay.toUTC().toJSDate(),
+        },
+      })
+      .sort({ scheduledAt: 1 })
+      .exec();
+
+    const event: DailyDigestEvent = {
+      date: todayInIstanbul.toISODate() ?? '',
+      calls: calls.map((call) => ({
+        callRequestId: call.callRequestId,
+        email: call.email,
+        phoneNumber: call.phoneNumber,
+        scheduledAt: call.scheduledAt.toISOString(),
+      })),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.DAILY_DIGEST,
+      event,
+    );
+
+    this.logger.log(
+      `Published daily digest for ${event.date} with ${event.calls.length} calls`,
+    );
   }
 }

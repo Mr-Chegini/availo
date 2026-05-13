@@ -34,6 +34,7 @@ export enum RabbitmqRoutingKey {
   CALL_REJECTED = 'call.rejected',
   CALL_CANCELED = 'call.canceled',
   CALL_REMINDER = 'call.reminder',
+  DAILY_DIGEST = 'call.daily-digest',
 }
 
 export interface CallRequestResponseDto {
@@ -70,4 +71,14 @@ export interface CallReminderEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+}
+
+export interface DailyDigestEvent {
+  date: string;
+  calls: Array<{
+    callRequestId: string;
+    email: string;
+    phoneNumber: string;
+    scheduledAt: string;
+  }>;
 }
