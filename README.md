@@ -1,105 +1,330 @@
-# New Nx Repository
+# Call Reservation System
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Distributed backend assignment for reserving 30-minute calls with an admin.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+The system is built as an Nx monorepo with three NestJS services and one shared package:
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-## Try the full Nx platform
-🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/setup/connect-workspace/guide). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
-## Generate a library
+- `call-requests-service`
+- `scheduler-service`
+- `communication-service`
+- `@org/shared-types`
 
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
+## Tech Stack
+
+- Nx monorepo
+- NestJS
+- MongoDB
+- RabbitMQ
+- Docker / Docker Compose
+- TypeScript
+
+## Services
+
+### Call Requests Service
+
+The main API layer and source of truth for call requests.
+
+Responsibilities:
+
+- Create call requests
+- Query availability
+- List call requests for admin
+- Approve/reject call requests
+- Mark scheduled calls as called/canceled
+- Update admin notes
+- Store call request data in MongoDB
+- Publish domain events to RabbitMQ
+
+Main API prefix:
+
+```text
+http://localhost:3000/api
 ```
 
-## Run tasks
+Important endpoints:
 
-To build the library use:
-
-```sh
-npx nx build pkg1
+```http
+GET    /api/call-requests
+GET    /api/call-requests/availability?date=YYYY-MM-DD
+POST   /api/call-requests
+PATCH  /api/call-requests/:id/approve
+PATCH  /api/call-requests/:id/reject
+PATCH  /api/call-requests/:id/called
+PATCH  /api/call-requests/:id/cancel
+PATCH  /api/call-requests/:id/admin-note
 ```
 
-To run any task with Nx use:
+Example create request:
 
-```sh
-npx nx <target> <project-name>
+```http
+POST /api/call-requests
+Content-Type: application/json
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Versioning and releasing
-
-To version and release the library use
-
-```
-npx nx release
+```json
+{
+  "email": "user@example.com",
+  "phoneNumber": "+905551112233",
+  "scheduledAt": "2026-05-15T10:00:00.000Z"
+}
 ```
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+### Scheduler Service
 
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Responsible for all time-based logic.
 
-## Keep TypeScript project references up to date
+Responsibilities:
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+- Consume `call.approved`
+- Store scheduled calls in its own MongoDB collection
+- Publish reminder events before calls
+- Publish daily digest events
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+Important architectural decision:
 
-```sh
-npx nx sync
+The Scheduler Service does not poll the Call Requests Service and does not query the call request collection directly. It builds its own state by consuming RabbitMQ events.
+
+This keeps the scheduler independent and avoids service-to-service polling.
+
+### Communication Service
+
+Responsible for all email-related behavior.
+
+For this assignment, actual emails are mocked with `console.log`.
+
+Responsibilities:
+
+- Consume call-related events from RabbitMQ
+- Log mock email templates for:
+  - call requested
+  - call approved
+  - call rejected
+  - call canceled
+  - call reminder
+  - daily digest
+
+To view mock emails, check the Docker logs:
+
+```bash
+docker logs communication-service
 ```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+Or while running Compose:
 
-```sh
-npx nx sync:check
+```bash
+docker compose logs -f communication-service
 ```
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+## Shared Types
 
-## Nx Cloud
+Reusable DTOs, enums, and RabbitMQ event payloads live in:
 
-Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Set up CI (non-Github Actions CI)
-
-**Note:** This is only required if your CI provider is not GitHub Actions.
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+```text
+packages/shared-types
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+The package is imported as:
 
-## Install Nx Console
+```ts
+import { CallRequestStatus } from '@org/shared-types';
+import type { CreateCallRequestDto } from '@org/shared-types';
+```
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+## Environment Variables
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Create a local `.env` file from `.env.example`:
 
-## Useful links
+```bash
+cp .env.example .env
+```
 
-Learn more:
+Example variables:
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```env
+NODE_ENV=development
 
-And join the Nx community:
+CALL_REQUESTS_SERVICE_PORT=3000
+SCHEDULER_SERVICE_PORT=3001
+COMMUNICATION_SERVICE_PORT=3002
 
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+MONGODB_URI=mongodb://localhost:27017/call-reservation
+
+RABBITMQ_URL=amqp://guest:guest@localhost:5672
+RABBITMQ_CALLS_EXCHANGE=calls.exchange
+
+RABBITMQ_CALL_REQUESTED_QUEUE=communication.call-requested
+RABBITMQ_CALL_APPROVED_QUEUE=communication.call-approved
+RABBITMQ_CALL_REJECTED_QUEUE=communication.call-rejected
+RABBITMQ_CALL_CANCELED_QUEUE=communication.call-canceled
+RABBITMQ_CALL_REMINDER_QUEUE=communication.call-reminder
+RABBITMQ_DAILY_DIGEST_QUEUE=communication.daily-digest
+
+RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
+
+ADMIN_EMAIL=admin@example.com
+```
+
+Do not commit the real `.env` file.
+
+## Running with Docker Compose
+
+The Docker Compose file is inside the `scripts` folder.
+
+From the root project directory:
+
+```bash
+cd scripts
+docker compose up --build
+```
+
+Services:
+
+```text
+MongoDB:                 localhost:27017
+RabbitMQ AMQP:           localhost:5672
+RabbitMQ Management UI:  http://localhost:15672
+Call Requests Service:   http://localhost:3000/api
+Scheduler Service:       http://localhost:3001
+Communication Service:   http://localhost:3002
+```
+
+RabbitMQ dashboard login:
+
+```text
+username: guest
+password: guest
+```
+
+## Running Locally Without Docker
+
+Start MongoDB and RabbitMQ manually, then run services separately:
+
+```bash
+npx nx serve @org/call-requests-service
+npx nx serve @org/scheduler-service
+npx nx serve @org/communication-service
+```
+
+## Build Commands
+
+Build all main services:
+
+```bash
+npx nx build @org/shared-types
+npx nx build @org/call-requests-service
+npx nx build @org/scheduler-service
+npx nx build @org/communication-service
+```
+
+## Booking Rules
+
+- Working hours are 10:00 to 18:00 Istanbul time
+- Calls are Monday to Friday only
+- Weekend bookings are rejected
+- Past dates are rejected
+- Same-day bookings are rejected
+- Calls are always 30 minutes
+- Call start time must be on a 30-minute boundary, for example:
+  - `10:00`
+  - `10:30`
+  - `11:00`
+
+## Call Request Lifecycle
+
+```text
+REQUESTED
+  ├── approved  → SCHEDULED
+  └── rejected  → REJECTED
+
+SCHEDULED
+  ├── marked as called → CALLED
+  └── canceled         → CANCELED
+```
+
+## RabbitMQ Events
+
+The system uses a topic exchange:
+
+```text
+calls.exchange
+```
+
+Routing keys:
+
+```text
+call.requested
+call.approved
+call.rejected
+call.canceled
+call.reminder
+call.daily-digest
+```
+
+## Reminder Timing Assumption
+
+The assignment text mentions both:
+
+- 30 minutes before call reminder
+- 2 hours before scheduled call reminder
+
+This implementation follows the lifecycle table and sends reminder events 2 hours before the scheduled call.
+
+## Daily Digest
+
+The Scheduler Service publishes a daily digest event for scheduled calls.
+
+The Communication Service consumes this event and logs one admin digest email.
+
+## Mock Emails
+
+Emails are not actually sent. They are logged by the Communication Service.
+
+Example:
+
+```bash
+docker compose logs -f communication-service
+```
+
+You should see logs for templates such as:
+
+```text
+CALL_REQUESTED
+CALL_APPROVED
+CALL_REJECTED
+CALL_CANCELED
+CALL_REMINDER_CUSTOMER
+CALL_REMINDER_ADMIN
+DAILY_DIGEST
+```
+
+## Frontend Status
+
+A simple frontend/admin UI is part of the assignment scope.
+
+Planned views:
+
+- User View:
+  - Show availability
+  - Submit a call request
+- Admin View:
+  - List call requests
+  - Approve/reject requests
+  - Mark scheduled calls as called/canceled
+  - Edit admin notes
+
+The backend APIs are prepared for these frontend actions.
+
+## Commit Convention
+
+This repository uses Conventional Commits.
+
+Examples:
+
+```text
+chore: initialize nx monorepo with services
+feat: add call request creation endpoint
+feat: publish call requested events
+feat: consume approval email events
+chore: dockerize backend services
+docs: add project setup and architecture notes
+```
