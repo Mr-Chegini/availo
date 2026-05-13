@@ -9,6 +9,7 @@ import { Model } from 'mongoose';
 import {
   AvailabilitySlotDto,
   CallApprovedEvent,
+  CallCanceledEvent,
   CallRejectedEvent,
   CallRequestedEvent,
   CallRequestResponseDto,
@@ -280,4 +281,49 @@ export class CallRequestsService {
 
     return this.toResponse(callRequest);
   }
+
+  async markAsCalled(id: string): Promise<CallRequestResponseDto> {
+  const callRequest = await this.callRequestModel.findById(id).exec();
+
+  if (!callRequest) {
+    throw new NotFoundException('Call request not found');
+  }
+
+  if (callRequest.status !== CallRequestStatus.SCHEDULED) {
+    throw new ConflictException('Only scheduled calls can be marked as called');
+  }
+
+  callRequest.status = CallRequestStatus.CALLED;
+  await callRequest.save();
+
+  return this.toResponse(callRequest);
+}
+
+async cancel(id: string): Promise<CallRequestResponseDto> {
+  const callRequest = await this.callRequestModel.findById(id).exec();
+
+  if (!callRequest) {
+    throw new NotFoundException('Call request not found');
+  }
+
+  if (callRequest.status !== CallRequestStatus.SCHEDULED) {
+    throw new ConflictException('Only scheduled calls can be canceled');
+  }
+
+  callRequest.status = CallRequestStatus.CANCELED;
+  await callRequest.save();
+
+  const event: CallCanceledEvent = {
+    callRequestId: callRequest.id,
+    email: callRequest.email,
+    scheduledAt: callRequest.scheduledAt.toISOString(),
+  };
+
+  await this.rabbitmqPublisherService.publish(
+    RabbitmqRoutingKey.CALL_CANCELED,
+    event,
+  );
+
+  return this.toResponse(callRequest);
+}
 }

@@ -38,4 +38,14 @@ export class CallRequestsController {
   reject(@Param('id') id: string) {
     return this.callRequestsService.reject(id);
   }
+
+  @Patch(':id/called')
+  markAsCalled(@Param('id') id: string) {
+    return this.callRequestsService.markAsCalled(id);
+  }
+
+  @Patch(':id/cancel')
+  cancel(@Param('id') id: string) {
+    return this.callRequestsService.cancel(id);
+  }
 }
