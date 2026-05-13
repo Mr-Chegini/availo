@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import * as Joi from 'joi';
 import { SchedulerCallsModule } from './scheduler-calls/scheduler-calls.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { SchedulerCallsModule } from './scheduler-calls/scheduler-calls.module';
     }),
 
     SchedulerCallsModule,
+    ScheduleModule.forRoot(),
   ],
 })
 export class AppModule {}

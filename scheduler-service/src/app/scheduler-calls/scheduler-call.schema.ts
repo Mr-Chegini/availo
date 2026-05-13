@@ -20,13 +20,15 @@ export class SchedulerCall {
   @Prop({ required: true })
   scheduledAt!: Date;
 
+  @Prop({ required: true, default: false })
+  reminderSent!: boolean;
+
   createdAt!: Date;
 
   updatedAt!: Date;
 }
 
-export const SchedulerCallSchema =
-  SchemaFactory.createForClass(SchedulerCall);
+export const SchedulerCallSchema = SchemaFactory.createForClass(SchedulerCall);
 
 SchedulerCallSchema.index(
   { scheduledAt: 1 },
