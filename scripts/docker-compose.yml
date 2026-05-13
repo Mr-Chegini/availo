@@ -3,7 +3,7 @@ services:
     image: mongo:7
     container_name: call-reservation-mongodb
     ports:
-      - "27017:27017"
+      - '27017:27017'
     volumes:
       - mongodb_data:/data/db
 
@@ -11,13 +11,76 @@ services:
     image: rabbitmq:3-management
     container_name: call-reservation-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - '5672:5672'
+      - '15672:15672'
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+
+  call-requests-service:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: call-requests-service
+    container_name: call-requests-service
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      CALL_REQUESTS_SERVICE_PORT: 3000
+      MONGODB_URI: mongodb://mongodb:27017/call-reservation
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_CALLS_EXCHANGE: calls.exchange
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+  scheduler-service:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: scheduler-service
+    container_name: scheduler-service
+    ports:
+      - '3001:3001'
+    environment:
+      NODE_ENV: production
+      SCHEDULER_SERVICE_PORT: 3001
+      MONGODB_URI: mongodb://mongodb:27017/call-reservation
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_CALLS_EXCHANGE: calls.exchange
+      RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE: scheduler.call-approved
+    depends_on:
+      - mongodb
+      - rabbitmq
+
+  communication-service:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: communication-service
+    container_name: communication-service
+    ports:
+      - '3002:3002'
+    environment:
+      NODE_ENV: production
+      COMMUNICATION_SERVICE_PORT: 3002
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      RABBITMQ_CALLS_EXCHANGE: calls.exchange
+      RABBITMQ_CALL_REQUESTED_QUEUE: communication.call-requested
+      RABBITMQ_CALL_APPROVED_QUEUE: communication.call-approved
+      RABBITMQ_CALL_REJECTED_QUEUE: communication.call-rejected
+      RABBITMQ_CALL_CANCELED_QUEUE: communication.call-canceled
+      RABBITMQ_CALL_REMINDER_QUEUE: communication.call-reminder
+      RABBITMQ_DAILY_DIGEST_QUEUE: communication.daily-digest
+      ADMIN_EMAIL: admin@example.com
+    depends_on:
+      - rabbitmq
 
 volumes:
   mongodb_data:
