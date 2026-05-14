@@ -22,6 +22,14 @@ import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 
+
+// TODO => move to somewhere else
+// Pending or confirmed calls block the same calendar 
+const SLOT_TAKEN_STATUSES: CallRequestStatus[] = [
+  CallRequestStatus.REQUESTED,
+  CallRequestStatus.SCHEDULED,
+];
+
 @Injectable()
 export class CallRequestsService {
   constructor(
@@ -47,7 +55,7 @@ export class CallRequestsService {
 
     const existingCallRequest = await this.callRequestModel.exists({
       scheduledAt,
-      status: CallRequestStatus.REQUESTED,
+      status: { $in: SLOT_TAKEN_STATUSES },
     });
 
     if (existingCallRequest) {
@@ -133,16 +141,16 @@ export class CallRequestsService {
   }
 
   async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
-    const day = DateTime.fromISO(date, {
+    const day = DateTime.fromFormat(date, 'yyyy-MM-dd', {
       zone: 'Europe/Istanbul',
     });
-
+  
     if (!day.isValid) {
-      throw new BadRequestException('date must be a valid ISO date');
+      throw new BadRequestException('date must be in YYYY-MM-DD format');
     }
-
+  
     const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
-
+  
     if (
       day.hasSame(nowInIstanbul, 'day') ||
       day < nowInIstanbul.startOf('day')
@@ -151,57 +159,57 @@ export class CallRequestsService {
         'Availability is only available for future dates',
       );
     }
-
+  
     if (day.weekday === 6 || day.weekday === 7) {
       return [];
     }
-
+  
     const startOfWorkingDay = day.set({
       hour: 10,
       minute: 0,
       second: 0,
       millisecond: 0,
     });
-
+  
     const endOfWorkingDay = day.set({
       hour: 18,
       minute: 0,
       second: 0,
       millisecond: 0,
     });
-
+  
     const existingCallRequests = await this.callRequestModel
       .find({
         scheduledAt: {
           $gte: startOfWorkingDay.toUTC().toJSDate(),
           $lt: endOfWorkingDay.toUTC().toJSDate(),
         },
-        status: CallRequestStatus.REQUESTED,
+        status: { $in: SLOT_TAKEN_STATUSES },
       })
       .select('scheduledAt')
       .lean();
-
+  
     const reservedTimes = new Set(
       existingCallRequests.map((callRequest) =>
         callRequest.scheduledAt.toISOString(),
       ),
     );
-
+  
     const slots: AvailabilitySlotDto[] = [];
-
+  
     let currentSlot = startOfWorkingDay;
-
+  
     while (currentSlot < endOfWorkingDay) {
       const scheduledAt = currentSlot.toUTC().toJSDate().toISOString();
-
+  
       slots.push({
         scheduledAt,
         available: !reservedTimes.has(scheduledAt),
       });
-
+  
       currentSlot = currentSlot.plus({ minutes: 30 });
     }
-
+  
     return slots;
   }
 

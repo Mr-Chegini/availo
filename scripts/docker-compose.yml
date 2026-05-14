@@ -6,6 +6,12 @@ services:
       - '27017:27017'
     volumes:
       - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -18,6 +24,12 @@ services:
       RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   call-requests-service:
     build:
@@ -36,8 +48,10 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       RABBITMQ_CALLS_EXCHANGE: calls.exchange
     depends_on:
-      - mongodb
-      - rabbitmq
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   scheduler-service:
     build:
@@ -58,8 +72,10 @@ services:
       RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE: scheduler.call-approved
       RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE: scheduler.call-canceled
     depends_on:
-      - mongodb
-      - rabbitmq
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   communication-service:
     build:
@@ -84,7 +100,8 @@ services:
       RABBITMQ_DAILY_DIGEST_QUEUE: communication.daily-digest
       ADMIN_EMAIL: admin@example.com
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
 
   frontend:
     build:
