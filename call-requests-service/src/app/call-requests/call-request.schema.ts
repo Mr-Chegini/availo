@@ -19,6 +19,7 @@ export class CallRequest {
   scheduledAt!: Date;
 
   @Prop({
+    type: String,
     required: true,
     enum: Object.values(CallRequestStatus),
     default: CallRequestStatus.REQUESTED,
