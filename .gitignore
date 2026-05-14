@@ -45,6 +45,12 @@ Thumbs.db
 
 .claude/worktrees
 .claude/settings.local.json
+
+# Local copies of agent skills (canonical Cursor skills live under .cursor/skills)
+/.agents/
+/.gemini/
+/.opencode/
+/.codex/
 .nx/polygraph
 .nx/self-healing
 
