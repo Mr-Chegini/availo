@@ -44,6 +44,14 @@ export class SchedulerCallsService {
     );
   }
 
+  async handleCallCanceled(callRequestId: string): Promise<void> {
+    const result = await this.schedulerCallModel.deleteOne({ callRequestId });
+
+    if (result.deletedCount > 0) {
+      this.logger.log(`Removed scheduled call ${callRequestId} after cancel`);
+    }
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async publishDueReminderEvents(): Promise<void> {
     const now = new Date();

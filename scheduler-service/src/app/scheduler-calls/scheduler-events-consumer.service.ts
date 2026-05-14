@@ -9,7 +9,7 @@ import {
   RabbitmqExchange,
   RabbitmqRoutingKey,
 } from '@org/shared-types';
-import type { CallApprovedEvent } from '@org/shared-types';
+import type { CallApprovedEvent, CallCanceledEvent } from '@org/shared-types';
 import * as amqp from 'amqplib';
 import { SchedulerCallsService } from './scheduler-calls.service';
 
@@ -34,9 +34,14 @@ export class SchedulerEventsConsumerService
       RabbitmqExchange.CALLS,
     );
 
-    const queue = this.configService.get<string>(
+    const approvedQueue = this.configService.get<string>(
       'RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE',
       'scheduler.call-approved',
+    );
+
+    const canceledQueue = this.configService.get<string>(
+      'RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE',
+      'scheduler.call-canceled',
     );
 
     this.connection = await amqp.connect(rabbitmqUrl);
@@ -46,17 +51,17 @@ export class SchedulerEventsConsumerService
       durable: true,
     });
 
-    await this.channel.assertQueue(queue, {
+    await this.channel.assertQueue(approvedQueue, {
       durable: true,
     });
 
     await this.channel.bindQueue(
-      queue,
+      approvedQueue,
       exchange,
       RabbitmqRoutingKey.CALL_APPROVED,
     );
 
-    await this.channel.consume(queue, async (message) => {
+    await this.channel.consume(approvedQueue, async (message) => {
       if (!message) {
         return;
       }
@@ -76,7 +81,42 @@ export class SchedulerEventsConsumerService
     });
 
     this.logger.log(
-      `Listening for ${RabbitmqRoutingKey.CALL_APPROVED} on queue ${queue}`,
+      `Listening for ${RabbitmqRoutingKey.CALL_APPROVED} on queue ${approvedQueue}`,
+    );
+
+    await this.channel.assertQueue(canceledQueue, {
+      durable: true,
+    });
+
+    await this.channel.bindQueue(
+      canceledQueue,
+      exchange,
+      RabbitmqRoutingKey.CALL_CANCELED,
+    );
+
+    await this.channel.consume(canceledQueue, async (message) => {
+      if (!message) {
+        return;
+      }
+
+      try {
+        const payload = JSON.parse(
+          message.content.toString(),
+        ) as CallCanceledEvent;
+
+        await this.schedulerCallsService.handleCallCanceled(
+          payload.callRequestId,
+        );
+
+        this.channel?.ack(message);
+      } catch (error) {
+        this.logger.error('Failed to process call canceled event', error);
+        this.channel?.nack(message, false, false);
+      }
+    });
+
+    this.logger.log(
+      `Listening for ${RabbitmqRoutingKey.CALL_CANCELED} on queue ${canceledQueue}`,
     );
   }
 
