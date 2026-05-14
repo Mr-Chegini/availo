@@ -76,9 +76,11 @@ export function AdminView() {
     callRequestId: string,
     event: ChangeEvent<HTMLTextAreaElement>,
   ) {
+    const nextAdminNote = event.currentTarget.value;
+
     setNotesById((current) => ({
       ...current,
-      [callRequestId]: event.currentTarget.value,
+      [callRequestId]: nextAdminNote,
     }));
   }
 
