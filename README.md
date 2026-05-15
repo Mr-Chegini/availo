@@ -145,7 +145,7 @@ The frontend calls the Call Requests Service API.
 Reusable DTOs, enums, and RabbitMQ event payloads live in:
 
 ```text
-packages/shared-types
+libs/shared-types
 ```
 
 The package is imported as:

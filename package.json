@@ -47,7 +47,7 @@
     "webpack-cli": "^5.1.4"
   },
   "workspaces": [
-    "packages/*",
+    "libs/*",
     "call-requests-service",
     "scheduler-service",
     "communication-service"
