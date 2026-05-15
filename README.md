@@ -304,6 +304,12 @@ The assignment text mentions both:
 
 This implementation follows the lifecycle table and sends reminder events 2 hours before the scheduled call.
 
+## Slot Availability Assumption
+
+When checking calendar availability or booking a slot, the system relies on `REQUESTED` and `SCHEDULED` statuses to block the calendar.
+
+If an admin successfully marks a call as `CALLED`, the assumption is that the call is over and happened in the past. Since the API natively rejects any attempts to book past dates or same-day dates, a slot that is marked `CALLED` is inherently prevented from being re-booked. Therefore, `CALLED` is intentionally omitted from the availability validation algorithm meant for future blocks.
+
 ## Daily Digest
 
 The Scheduler Service publishes a daily digest event for scheduled calls.
@@ -341,8 +347,6 @@ Examples:
 ```text
 chore: initialize nx monorepo with services
 feat: add call request creation endpoint
-feat: publish call requested events
-feat: consume approval email events
 chore: dockerize backend services
 docs: add project setup and architecture notes
 ```

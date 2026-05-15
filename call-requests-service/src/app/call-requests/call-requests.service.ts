@@ -47,7 +47,9 @@ export class CallRequestsService {
 
     const existingCallRequest = await this.callRequestModel.exists({
       scheduledAt,
-      status: { $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED] },
+      status: {
+        $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+      },
     });
 
     if (existingCallRequest) {
@@ -176,7 +178,9 @@ export class CallRequestsService {
           $gte: startOfWorkingDay.toUTC().toJSDate(),
           $lt: endOfWorkingDay.toUTC().toJSDate(),
         },
-        status: { $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED] },
+        status: {
+          $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+        },
       })
       .select('scheduledAt')
       .lean();

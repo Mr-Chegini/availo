@@ -22,14 +22,14 @@ export class CallRequestsController {
     return this.callRequestsService.create(dto);
   }
 
-  @Get('availability')
-  getAvailability(@Query('date') date: string) {
-    return this.callRequestsService.getAvailability(date);
-  }
-
   @Get()
   findAll() {
     return this.callRequestsService.findAll();
+  }
+
+  @Get('availability')
+  getAvailability(@Query('date') date: string) {
+    return this.callRequestsService.getAvailability(date);
   }
 
   @Patch(':id/approve')
