@@ -295,6 +295,16 @@ call.reminder
 call.daily-digest
 ```
 
+## Idempotency Note
+
+The system includes partial idempotency handling.
+
+The Scheduler Service handles duplicate `call.approved` events safely by using an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
+
+However, full idempotency for the Communication Service is not implemented yet. If RabbitMQ delivers the same email-related event more than once, the mock email log could be produced more than once.
+
+In a production-ready version, I would add an event deduplication mechanism, such as a `processed_email_events` collection with a unique `eventId` or a unique key based on `routingKey + callRequestId`. The Communication Service would check this collection before sending/logging an email and skip already processed events.
+
 ## Reminder Timing Assumption
 
 The assignment text mentions both:
