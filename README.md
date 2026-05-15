@@ -65,7 +65,7 @@ Content-Type: application/json
 
 ```json
 {
-  "email": "user@example.com",
+  "email": "user@gmail.com",
   "phoneNumber": "+905551112233",
   "scheduledAt": "2026-05-15T10:00:00.000Z"
 }

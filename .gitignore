@@ -1,4 +1,3 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # compiled output
 dist
@@ -40,19 +39,7 @@ Thumbs.db
 
 .nx/cache
 .nx/workspace-data
-.cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
-
-.claude/worktrees
-.claude/settings.local.json
-
-# Local copies of agent skills (canonical Cursor skills live under .cursor/skills)
-/.agents/
-/.gemini/
-/.opencode/
-/.codex/
-.nx/polygraph
-.nx/self-healing
 
 # Env Vars
 .env

@@ -7,7 +7,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ['CMD', 'mongosh', '--eval', "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -98,7 +98,7 @@ services:
       RABBITMQ_CALL_CANCELED_QUEUE: communication.call-canceled
       RABBITMQ_CALL_REMINDER_QUEUE: communication.call-reminder
       RABBITMQ_DAILY_DIGEST_QUEUE: communication.daily-digest
-      ADMIN_EMAIL: admin@example.com
+      ADMIN_EMAIL: amir@gmail.com
     depends_on:
       rabbitmq:
         condition: service_healthy

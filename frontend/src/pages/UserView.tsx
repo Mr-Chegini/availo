@@ -6,6 +6,23 @@ import {
   getAvailability,
 } from '../api/callRequestsApi';
 
+// Turkey is permanently UTC+3 (no DST since 2016)
+const ISTANBUL_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function getIstanbulTomorrow(): string {
+  const istanbulNow = new Date(Date.now() + ISTANBUL_OFFSET_MS);
+  istanbulNow.setUTCDate(istanbulNow.getUTCDate() + 1);
+  return istanbulNow.toISOString().split('T')[0];
+}
+
+// Use UTC noon so the JS Date's UTC day matches the intended calendar day
+// regardless of the user's local timezone.
+function isWeekend(dateStr: string): boolean {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay();
+  return day === 0 || day === 6;
+}
+
 function formatSlotTime(scheduledAt: string): string {
   return new Intl.DateTimeFormat('en-GB', {
     hour: '2-digit',
@@ -45,6 +62,12 @@ export function UserView() {
       return;
     }
 
+    if (isWeekend(date)) {
+      setSlots([]);
+      setMessage('Weekends are not available. Please pick a weekday (Mon–Fri).');
+      return;
+    }
+
     try {
       setMessage('');
       setSelectedSlot('');
@@ -54,7 +77,9 @@ export function UserView() {
       setSlots(availability);
 
       if (availability.length === 0) {
-        setMessage('No available slots for this date.');
+        setMessage('No slots available for this date.');
+      } else if (availability.every((s) => !s.available)) {
+        setMessage('All slots are fully booked for this date.');
       }
     } catch (error) {
       setSlots([]);
@@ -64,6 +89,11 @@ export function UserView() {
     } finally {
       setIsLoadingAvailability(false);
     }
+  }
+
+  async function loadSlotsForDate(d: string) {
+    const availability = await getAvailability(d);
+    setSlots(availability);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -103,8 +133,7 @@ export function UserView() {
       setSelectedSlot('');
 
       if (date) {
-        const availability = await getAvailability(date);
-        setSlots(availability);
+        await loadSlotsForDate(date);
       }
     } catch (error) {
       setMessage(
@@ -117,11 +146,15 @@ export function UserView() {
     }
   }
 
+  const minDate = getIstanbulTomorrow();
+
   return (
     <section className="page-card">
       <h1 className="page-title">User View</h1>
       <p className="page-description">
         Choose a date, select an available 30-minute slot, and request a call.
+        Only weekdays (Mon–Fri) between 10:00–18:00 Istanbul time (UTC+3) are
+        available.
       </p>
 
       <div className="form-grid">
@@ -134,6 +167,7 @@ export function UserView() {
             id="date"
             type="date"
             value={date}
+            min={minDate}
             onChange={handleDateChange}
           />
         </div>
