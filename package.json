@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "test:call-requests": "vitest run call-requests-service/src/app/call-requests/call-request-booking-rules.spec.ts"
+    "test:call-requests": "vitest run call-requests-service/src/app/call-requests"
   },
   "private": true,
   "devDependencies": {

@@ -29,6 +29,7 @@ import {
   SLOT_INTERVAL_MINUTES,
 } from './call-request-booking-rules';
 import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
+import { normalizeCreateCallRequestInput } from './create-call-request-input';
 
 @Injectable()
 export class CallRequestsService {
@@ -39,17 +40,8 @@ export class CallRequestsService {
   ) {}
 
   async create(dto: CreateCallRequestDto) {
-    const scheduledAt = new Date(dto.scheduledAt);
-
-    if (!dto.email || !dto.phoneNumber || !dto.scheduledAt) {
-      throw new BadRequestException(
-        'email, phoneNumber and scheduledAt are required',
-      );
-    }
-
-    if (Number.isNaN(scheduledAt.getTime())) {
-      throw new BadRequestException('scheduledAt must be a valid date');
-    }
+    const { email, phoneNumber, scheduledAt } =
+      this.normalizeCreateInput(dto);
 
     this.validateScheduledAt(scheduledAt);
 
@@ -65,8 +57,8 @@ export class CallRequestsService {
     }
 
     const callRequest = await this.createCallRequest({
-      email: dto.email,
-      phoneNumber: dto.phoneNumber,
+      email,
+      phoneNumber,
       scheduledAt,
     });
 
@@ -83,6 +75,18 @@ export class CallRequestsService {
     );
 
     return this.toResponse(callRequest);
+  }
+
+  private normalizeCreateInput(
+    dto: CreateCallRequestDto,
+  ): ReturnType<typeof normalizeCreateCallRequestInput> {
+    try {
+      return normalizeCreateCallRequestInput(dto);
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Invalid call request',
+      );
+    }
   }
 
   private validateScheduledAt(scheduledAt: Date): void {
