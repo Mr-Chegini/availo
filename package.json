@@ -2,7 +2,9 @@
   "name": "@org/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "test:call-requests": "vitest run call-requests-service/src/app/call-requests/call-request-booking-rules.spec.ts"
+  },
   "private": true,
   "devDependencies": {
     "@eslint/js": "^9.8.0",

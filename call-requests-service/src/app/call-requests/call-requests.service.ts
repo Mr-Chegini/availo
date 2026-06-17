@@ -21,11 +21,14 @@ import {
 import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
+import {
+  getBookingTimeValidationError,
+  getWorkingDayBounds,
+  ISTANBUL_TIME_ZONE,
+  isWeekend,
+  SLOT_INTERVAL_MINUTES,
+} from './call-request-booking-rules';
 
-const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
-const WORKDAY_START_HOUR = 10;
-const WORKDAY_END_HOUR = 18;
-const SLOT_INTERVAL_MINUTES = 30;
 const ACTIVE_RESERVATION_STATUSES = [
   CallRequestStatus.REQUESTED,
   CallRequestStatus.SCHEDULED,
@@ -88,51 +91,10 @@ export class CallRequestsService {
   }
 
   private validateScheduledAt(scheduledAt: Date): void {
-    const nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE);
-    const scheduledInIstanbul =
-      DateTime.fromJSDate(scheduledAt).setZone(ISTANBUL_TIME_ZONE);
+    const validationError = getBookingTimeValidationError(scheduledAt);
 
-    if (scheduledInIstanbul <= nowInIstanbul) {
-      throw new BadRequestException('Call must be scheduled for a future date');
-    }
-
-    if (scheduledInIstanbul.hasSame(nowInIstanbul, 'day')) {
-      throw new BadRequestException('Same-day bookings are not allowed');
-    }
-
-    const weekday = scheduledInIstanbul.weekday;
-
-    if (weekday === 6 || weekday === 7) {
-      throw new BadRequestException(
-        'Calls can only be booked Monday to Friday',
-      );
-    }
-
-    const hour = scheduledInIstanbul.hour;
-    const minute = scheduledInIstanbul.minute;
-
-    const isInsideWorkingHours =
-      hour >= WORKDAY_START_HOUR &&
-      (hour < WORKDAY_END_HOUR ||
-        (hour === WORKDAY_END_HOUR && minute === 0));
-
-    if (!isInsideWorkingHours) {
-      throw new BadRequestException(
-        'Calls can only be booked between 10:00 and 18:00 Istanbul time',
-      );
-    }
-
-    if (minute !== 0 && minute !== SLOT_INTERVAL_MINUTES) {
-      throw new BadRequestException('Calls must start on a 30-minute slot');
-    }
-
-    if (
-      scheduledInIstanbul.second !== 0 ||
-      scheduledInIstanbul.millisecond !== 0
-    ) {
-      throw new BadRequestException(
-        'Call time must not include seconds or milliseconds',
-      );
+    if (validationError) {
+      throw new BadRequestException(validationError);
     }
   }
 
@@ -156,23 +118,11 @@ export class CallRequestsService {
       );
     }
 
-    if (day.weekday === 6 || day.weekday === 7) {
+    if (isWeekend(day)) {
       return [];
     }
 
-    const startOfWorkingDay = day.set({
-      hour: WORKDAY_START_HOUR,
-      minute: 0,
-      second: 0,
-      millisecond: 0,
-    });
-
-    const endOfWorkingDay = day.set({
-      hour: WORKDAY_END_HOUR,
-      minute: 0,
-      second: 0,
-      millisecond: 0,
-    });
+    const { startOfWorkingDay, endOfWorkingDay } = getWorkingDayBounds(day);
 
     const existingCallRequests = await this.callRequestModel
       .find({
