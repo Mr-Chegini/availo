@@ -22,6 +22,15 @@ import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 
+const ISTANBUL_TIME_ZONE = 'Europe/Istanbul';
+const WORKDAY_START_HOUR = 10;
+const WORKDAY_END_HOUR = 18;
+const SLOT_INTERVAL_MINUTES = 30;
+const ACTIVE_RESERVATION_STATUSES = [
+  CallRequestStatus.REQUESTED,
+  CallRequestStatus.SCHEDULED,
+];
+
 @Injectable()
 export class CallRequestsService {
   constructor(
@@ -48,7 +57,7 @@ export class CallRequestsService {
     const existingCallRequest = await this.callRequestModel.exists({
       scheduledAt,
       status: {
-        $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+        $in: ACTIVE_RESERVATION_STATUSES,
       },
     });
 
@@ -75,22 +84,13 @@ export class CallRequestsService {
       event,
     );
 
-    return {
-      id: callRequest.id,
-      email: callRequest.email,
-      phoneNumber: callRequest.phoneNumber,
-      scheduledAt: callRequest.scheduledAt.toISOString(),
-      status: callRequest.status,
-      adminNote: callRequest.adminNote,
-      createdAt: callRequest.createdAt.toISOString(),
-      updatedAt: callRequest.updatedAt.toISOString(),
-    };
+    return this.toResponse(callRequest);
   }
 
   private validateScheduledAt(scheduledAt: Date): void {
-    const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
+    const nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE);
     const scheduledInIstanbul =
-      DateTime.fromJSDate(scheduledAt).setZone('Europe/Istanbul');
+      DateTime.fromJSDate(scheduledAt).setZone(ISTANBUL_TIME_ZONE);
 
     if (scheduledInIstanbul <= nowInIstanbul) {
       throw new BadRequestException('Call must be scheduled for a future date');
@@ -112,7 +112,9 @@ export class CallRequestsService {
     const minute = scheduledInIstanbul.minute;
 
     const isInsideWorkingHours =
-      hour >= 10 && (hour < 18 || (hour === 18 && minute === 0));
+      hour >= WORKDAY_START_HOUR &&
+      (hour < WORKDAY_END_HOUR ||
+        (hour === WORKDAY_END_HOUR && minute === 0));
 
     if (!isInsideWorkingHours) {
       throw new BadRequestException(
@@ -120,7 +122,7 @@ export class CallRequestsService {
       );
     }
 
-    if (minute !== 0 && minute !== 30) {
+    if (minute !== 0 && minute !== SLOT_INTERVAL_MINUTES) {
       throw new BadRequestException('Calls must start on a 30-minute slot');
     }
 
@@ -136,14 +138,14 @@ export class CallRequestsService {
 
   async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
     const day = DateTime.fromISO(date, {
-      zone: 'Europe/Istanbul',
+      zone: ISTANBUL_TIME_ZONE,
     });
 
     if (!day.isValid) {
       throw new BadRequestException('date must be a valid ISO date');
     }
 
-    const nowInIstanbul = DateTime.now().setZone('Europe/Istanbul');
+    const nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE);
 
     if (
       day.hasSame(nowInIstanbul, 'day') ||
@@ -159,14 +161,14 @@ export class CallRequestsService {
     }
 
     const startOfWorkingDay = day.set({
-      hour: 10,
+      hour: WORKDAY_START_HOUR,
       minute: 0,
       second: 0,
       millisecond: 0,
     });
 
     const endOfWorkingDay = day.set({
-      hour: 18,
+      hour: WORKDAY_END_HOUR,
       minute: 0,
       second: 0,
       millisecond: 0,
@@ -179,7 +181,7 @@ export class CallRequestsService {
           $lt: endOfWorkingDay.toUTC().toJSDate(),
         },
         status: {
-          $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+          $in: ACTIVE_RESERVATION_STATUSES,
         },
       })
       .select('scheduledAt')
@@ -203,7 +205,7 @@ export class CallRequestsService {
         available: !reservedTimes.has(scheduledAt),
       });
 
-      currentSlot = currentSlot.plus({ minutes: 30 });
+      currentSlot = currentSlot.plus({ minutes: SLOT_INTERVAL_MINUTES });
     }
 
     return slots;
