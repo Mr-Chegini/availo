@@ -28,11 +28,7 @@ import {
   isWeekend,
   SLOT_INTERVAL_MINUTES,
 } from './call-request-booking-rules';
-
-const ACTIVE_RESERVATION_STATUSES = [
-  CallRequestStatus.REQUESTED,
-  CallRequestStatus.SCHEDULED,
-];
+import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
 
 @Injectable()
 export class CallRequestsService {
@@ -68,11 +64,10 @@ export class CallRequestsService {
       throw new BadRequestException('This time slot is already reserved');
     }
 
-    const callRequest = await this.callRequestModel.create({
+    const callRequest = await this.createCallRequest({
       email: dto.email,
       phoneNumber: dto.phoneNumber,
       scheduledAt,
-      status: CallRequestStatus.REQUESTED,
     });
 
     const event: CallRequestedEvent = {
@@ -95,6 +90,25 @@ export class CallRequestsService {
 
     if (validationError) {
       throw new BadRequestException(validationError);
+    }
+  }
+
+  private async createCallRequest(dto: {
+    email: string;
+    phoneNumber: string;
+    scheduledAt: Date;
+  }): Promise<CallRequestDocument> {
+    try {
+      return await this.callRequestModel.create({
+        ...dto,
+        status: CallRequestStatus.REQUESTED,
+      });
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new BadRequestException('This time slot is already reserved');
+      }
+
+      throw error;
     }
   }
 
@@ -301,4 +315,13 @@ export class CallRequestsService {
       updatedAt: callRequest.updatedAt.toISOString(),
     };
   }
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 11000
+  );
 }

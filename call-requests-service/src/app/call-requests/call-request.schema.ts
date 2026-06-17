@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { CallRequestStatus } from '@org/shared-types';
 import type { HydratedDocument } from 'mongoose';
+import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
 
 export type CallRequestDocument = HydratedDocument<CallRequest>;
 
@@ -38,4 +39,14 @@ export const CallRequestSchema = SchemaFactory.createForClass(CallRequest);
 CallRequestSchema.index(
   { scheduledAt: 1, status: 1 },
   { name: 'idx_call_requests_scheduled_at_status' },
+);
+CallRequestSchema.index(
+  { scheduledAt: 1 },
+  {
+    name: 'uniq_call_requests_active_scheduled_at',
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ACTIVE_RESERVATION_STATUSES },
+    },
+  },
 );
