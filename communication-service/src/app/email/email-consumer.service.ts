@@ -16,7 +16,19 @@ import type {
   DailyDigestEvent,
 } from '@org/shared-types';
 import * as amqp from 'amqplib';
-import { EMAIL_SENDER, type EmailSender } from './email-sender';
+import {
+  EMAIL_SENDER,
+  type EmailMessage,
+  type EmailSender,
+} from './email-sender';
+import {
+  buildCallApprovedEmail,
+  buildCallCanceledEmail,
+  buildCallRejectedEmail,
+  buildCallReminderEmails,
+  buildCallRequestedEmail,
+  buildDailyDigestEmail,
+} from './email-templates';
 
 @Injectable()
 export class EmailConsumerService
@@ -116,13 +128,7 @@ export class EmailConsumerService
   private async sendCallRequestedEmail(
     payload: CallRequestedEvent,
   ): Promise<void> {
-    await this.emailSender.send({
-      template: 'CALL_REQUESTED',
-      to: payload.email,
-      subject: 'Your call request was received',
-      text: `Your call request for ${payload.scheduledAt} was received and is waiting for admin approval.`,
-      metadata: { payload },
-    });
+    await this.emailSender.send(buildCallRequestedEmail(payload));
   }
 
   async onApplicationShutdown() {
@@ -176,37 +182,19 @@ export class EmailConsumerService
   private async sendCallApprovedEmail(
     payload: CallApprovedEvent,
   ): Promise<void> {
-    await this.emailSender.send({
-      template: 'CALL_APPROVED',
-      to: payload.email,
-      subject: 'Your call request was approved',
-      text: `Your call request for ${payload.scheduledAt} was approved.`,
-      metadata: { payload },
-    });
+    await this.emailSender.send(buildCallApprovedEmail(payload));
   }
 
   private async sendCallRejectedEmail(
     payload: CallRejectedEvent,
   ): Promise<void> {
-    await this.emailSender.send({
-      template: 'CALL_REJECTED',
-      to: payload.email,
-      subject: 'Your call request was rejected',
-      text: 'Your request was rejected by the admin. Please try reserving another time.',
-      metadata: { payload },
-    });
+    await this.emailSender.send(buildCallRejectedEmail(payload));
   }
 
   private async sendCallCanceledEmail(
     payload: CallCanceledEvent,
   ): Promise<void> {
-    await this.emailSender.send({
-      template: 'CALL_CANCELED',
-      to: payload.email,
-      subject: 'Your scheduled call was canceled',
-      text: `Your scheduled call for ${payload.scheduledAt} was canceled.`,
-      metadata: { payload },
-    });
+    await this.emailSender.send(buildCallCanceledEmail(payload));
   }
 
   private async sendCallReminderEmails(
@@ -214,44 +202,18 @@ export class EmailConsumerService
   ): Promise<void> {
     const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
 
-    await this.emailSender.send({
-      template: 'CALL_REMINDER_CUSTOMER',
-      to: payload.email,
-      subject: 'Reminder: your call is coming up',
-      text: `Reminder: your call is scheduled for ${payload.scheduledAt}.`,
-      metadata: { payload },
-    });
-
-    await this.emailSender.send({
-      template: 'CALL_REMINDER_ADMIN',
-      to: adminEmail,
-      subject: 'Reminder: scheduled customer call',
-      text: `Reminder: call with ${payload.email} / ${payload.phoneNumber} is scheduled for ${payload.scheduledAt}.`,
-      metadata: { payload },
-    });
+    await this.sendEmails(buildCallReminderEmails(payload, adminEmail));
   }
 
   private async sendDailyDigestEmail(payload: DailyDigestEvent): Promise<void> {
     const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
 
-    const callLines =
-      payload.calls.length === 0
-        ? 'No scheduled calls for today.'
-        : payload.calls
-            .map(
-              (call, index) =>
-                `${index + 1}. ${call.scheduledAt} - ${call.email} - ${
-                  call.phoneNumber
-                }`,
-            )
-            .join('\n');
+    await this.emailSender.send(buildDailyDigestEmail(payload, adminEmail));
+  }
 
-    await this.emailSender.send({
-      template: 'DAILY_DIGEST',
-      to: adminEmail,
-      subject: `Daily call digest - ${payload.date}`,
-      text: callLines,
-      metadata: { payload },
-    });
+  private async sendEmails(messages: EmailMessage[]): Promise<void> {
+    for (const message of messages) {
+      await this.emailSender.send(message);
+    }
   }
 }
