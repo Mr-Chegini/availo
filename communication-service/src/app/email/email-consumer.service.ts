@@ -3,6 +3,7 @@ import {
   Logger,
   OnApplicationShutdown,
   OnModuleInit,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RabbitmqExchange, RabbitmqRoutingKey } from '@org/shared-types';
@@ -15,6 +16,7 @@ import type {
   DailyDigestEvent,
 } from '@org/shared-types';
 import * as amqp from 'amqplib';
+import { EMAIL_SENDER, type EmailSender } from './email-sender';
 
 @Injectable()
 export class EmailConsumerService
@@ -24,7 +26,10 @@ export class EmailConsumerService
   private connection?: amqp.ChannelModel;
   private channel?: amqp.Channel;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    @Inject(EMAIL_SENDER) private readonly emailSender: EmailSender,
+  ) {}
 
   async onModuleInit() {
     const rabbitmqUrl = this.configService.getOrThrow<string>('RABBITMQ_URL');
@@ -108,13 +113,15 @@ export class EmailConsumerService
     );
   }
 
-  private sendCallRequestedEmail(payload: CallRequestedEvent): void {
-    this.logger.log({
+  private async sendCallRequestedEmail(
+    payload: CallRequestedEvent,
+  ): Promise<void> {
+    await this.emailSender.send({
       template: 'CALL_REQUESTED',
       to: payload.email,
       subject: 'Your call request was received',
-      body: `Your call request for ${payload.scheduledAt} was received and is waiting for admin approval.`,
-      payload,
+      text: `Your call request for ${payload.scheduledAt} was received and is waiting for admin approval.`,
+      metadata: { payload },
     });
   }
 
@@ -166,57 +173,65 @@ export class EmailConsumerService
     this.logger.log(`Listening for ${routingKey} on queue ${queue}`);
   }
 
-  private sendCallApprovedEmail(payload: CallApprovedEvent): void {
-    this.logger.log({
+  private async sendCallApprovedEmail(
+    payload: CallApprovedEvent,
+  ): Promise<void> {
+    await this.emailSender.send({
       template: 'CALL_APPROVED',
       to: payload.email,
       subject: 'Your call request was approved',
-      body: `Your call request for ${payload.scheduledAt} was approved.`,
-      payload,
+      text: `Your call request for ${payload.scheduledAt} was approved.`,
+      metadata: { payload },
     });
   }
 
-  private sendCallRejectedEmail(payload: CallRejectedEvent): void {
-    this.logger.log({
+  private async sendCallRejectedEmail(
+    payload: CallRejectedEvent,
+  ): Promise<void> {
+    await this.emailSender.send({
       template: 'CALL_REJECTED',
       to: payload.email,
       subject: 'Your call request was rejected',
-      body: 'Your request was rejected by the admin. Please try reserving another time.',
-      payload,
+      text: 'Your request was rejected by the admin. Please try reserving another time.',
+      metadata: { payload },
     });
   }
 
-  private sendCallCanceledEmail(payload: CallCanceledEvent): void {
-    this.logger.log({
+  private async sendCallCanceledEmail(
+    payload: CallCanceledEvent,
+  ): Promise<void> {
+    await this.emailSender.send({
       template: 'CALL_CANCELED',
       to: payload.email,
       subject: 'Your scheduled call was canceled',
-      body: `Your scheduled call for ${payload.scheduledAt} was canceled.`,
-      payload,
+      text: `Your scheduled call for ${payload.scheduledAt} was canceled.`,
+      metadata: { payload },
     });
   }
 
-  private sendCallReminderEmails(payload: CallReminderEvent): void {
+  private async sendCallReminderEmails(
+    payload: CallReminderEvent,
+  ): Promise<void> {
     const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
 
-    this.logger.log({
+    await this.emailSender.send({
       template: 'CALL_REMINDER_CUSTOMER',
       to: payload.email,
       subject: 'Reminder: your call is coming up',
-      body: `Reminder: your call is scheduled for ${payload.scheduledAt}.`,
-      payload,
+      text: `Reminder: your call is scheduled for ${payload.scheduledAt}.`,
+      metadata: { payload },
     });
 
-    this.logger.log({
+    await this.emailSender.send({
       template: 'CALL_REMINDER_ADMIN',
       to: adminEmail,
       subject: 'Reminder: scheduled customer call',
-      body: `Reminder: call with ${payload.email} / ${payload.phoneNumber} is scheduled for ${payload.scheduledAt}.`,
-      payload,
+      text: `Reminder: call with ${payload.email} / ${payload.phoneNumber} is scheduled for ${payload.scheduledAt}.`,
+      metadata: { payload },
     });
   }
 
-  private sendDailyDigestEmail(payload: DailyDigestEvent): void {
+  private async sendDailyDigestEmail(payload: DailyDigestEvent): Promise<void> {
     const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
 
     const callLines =
@@ -231,12 +246,12 @@ export class EmailConsumerService
             )
             .join('\n');
 
-    this.logger.log({
+    await this.emailSender.send({
       template: 'DAILY_DIGEST',
       to: adminEmail,
       subject: `Daily call digest - ${payload.date}`,
-      body: callLines,
-      payload,
+      text: callLines,
+      metadata: { payload },
     });
   }
 }

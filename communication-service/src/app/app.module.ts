@@ -38,6 +38,33 @@ import { EmailModule } from './email/email.module';
         ),
 
         ADMIN_EMAIL: Joi.string().email().required(),
+        EMAIL_PROVIDER: Joi.string().valid('console', 'smtp').default('console'),
+        EMAIL_FROM: Joi.when('EMAIL_PROVIDER', {
+          is: 'smtp',
+          then: Joi.string().email().required(),
+          otherwise: Joi.string().email().optional(),
+        }),
+        SMTP_HOST: Joi.when('EMAIL_PROVIDER', {
+          is: 'smtp',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional(),
+        }),
+        SMTP_PORT: Joi.when('EMAIL_PROVIDER', {
+          is: 'smtp',
+          then: Joi.number().port().required(),
+          otherwise: Joi.number().port().optional(),
+        }),
+        SMTP_SECURE: Joi.boolean().default(false),
+        SMTP_USER: Joi.when('EMAIL_PROVIDER', {
+          is: 'smtp',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional(),
+        }),
+        SMTP_PASSWORD: Joi.when('EMAIL_PROVIDER', {
+          is: 'smtp',
+          then: Joi.string().required(),
+          otherwise: Joi.string().optional(),
+        }),
       }),
     }),
 

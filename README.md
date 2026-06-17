@@ -188,6 +188,14 @@ RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 
 ADMIN_EMAIL=amir@gmail.com
+
+EMAIL_PROVIDER=console
+EMAIL_FROM=no-reply@example.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASSWORD=your-smtp-password
 ```
 
 Real `.env` files are ignored by git; keep local secrets out of commits.
@@ -326,11 +334,36 @@ The Scheduler Service publishes a daily digest event for scheduled calls.
 
 The Communication Service consumes this event and logs one admin digest email.
 
-## Email Logs
+## Email Delivery
 
-Emails are not sent by an external provider. They are logged by the Communication Service.
+The Communication Service sends emails through an `EmailSender` abstraction.
 
-Example:
+Available providers:
+
+- `console`: logs emails locally; this is the default
+- `smtp`: sends email through any SMTP-compatible provider
+
+Free SMTP-compatible providers can be used for development or early production trials. Brevo, Mailtrap, and similar services work with this setup. AWS SES can be added later as a separate `EmailSender` implementation without changing the event consumer.
+
+For local logs:
+
+```env
+EMAIL_PROVIDER=console
+```
+
+For SMTP delivery:
+
+```env
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=no-reply@example.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASSWORD=your-smtp-password
+```
+
+To inspect console emails while running Docker Compose:
 
 ```bash
 docker compose logs -f communication-service
