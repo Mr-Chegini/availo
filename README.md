@@ -309,9 +309,9 @@ call.daily-digest
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
 
-The Communication Service does not yet persist processed event ids. If RabbitMQ redelivers an email-related event, the email log can be produced more than once.
+The Communication Service stores processed email idempotency keys in MongoDB. If RabbitMQ redelivers the same email-related event, the service acknowledges it without sending/logging the email again.
 
-The usual next step is a `processed_email_events` collection with a unique `eventId`, or a unique key based on `routingKey + callRequestId`.
+The key is derived from the routing key and message body and is stored in the `processed_email_events` collection.
 
 ### Reminder Timing
 

@@ -29,6 +29,8 @@ import {
   buildCallRequestedEmail,
   buildDailyDigestEmail,
 } from './email-templates';
+import { createEmailIdempotencyKey } from './email-idempotency-key';
+import { ProcessedEmailEventsService } from './processed-email-events.service';
 
 @Injectable()
 export class EmailConsumerService
@@ -41,6 +43,7 @@ export class EmailConsumerService
   constructor(
     private readonly configService: ConfigService,
     @Inject(EMAIL_SENDER) private readonly emailSender: EmailSender,
+    private readonly processedEmailEventsService: ProcessedEmailEventsService,
   ) {}
 
   async onModuleInit() {
@@ -162,9 +165,27 @@ export class EmailConsumerService
       }
 
       try {
-        const payload = JSON.parse(message.content.toString()) as TPayload;
+        const idempotencyKey = createEmailIdempotencyKey(
+          routingKey,
+          message.content,
+        );
 
+        if (
+          await this.processedEmailEventsService.hasProcessed(idempotencyKey)
+        ) {
+          this.logger.log(
+            `Skipping duplicate email event ${idempotencyKey}`,
+          );
+          this.channel?.ack(message);
+          return;
+        }
+
+        const payload = JSON.parse(message.content.toString()) as TPayload;
         await handler(payload);
+        await this.processedEmailEventsService.markProcessed(
+          idempotencyKey,
+          routingKey,
+        );
 
         this.channel?.ack(message);
       } catch (error) {

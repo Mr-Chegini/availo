@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import * as Joi from 'joi';
 import { EmailModule } from './email/email.module';
 
@@ -14,6 +15,8 @@ import { EmailModule } from './email/email.module';
           .default('development'),
 
         COMMUNICATION_SERVICE_PORT: Joi.number().default(3002),
+
+        MONGODB_URI: Joi.string().required(),
 
         RABBITMQ_URL: Joi.string().required(),
         RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
@@ -68,6 +71,7 @@ import { EmailModule } from './email/email.module';
       }),
     }),
 
+    MongooseModule.forRoot(process.env.MONGODB_URI ?? ''),
     EmailModule,
   ],
 })
