@@ -1,8 +1,8 @@
 # Call Reservation System
 
-Distributed backend assignment for reserving 30-minute calls with an admin.
+Distributed call reservation system for booking 30-minute calls with an admin.
 
-The system is built as an Nx monorepo with three NestJS services, one shared package, and a simple frontend application.
+The system is built as an Nx monorepo with three NestJS services, one shared package, and a React frontend.
 
 - `call-requests-service`
 - `scheduler-service`
@@ -82,7 +82,7 @@ Responsibilities:
 - Publish reminder events before calls
 - Publish daily digest events
 
-Important architectural decision:
+Architecture note:
 
 The Scheduler Service does not poll the Call Requests Service and does not query the call request collection directly. It builds its own state by consuming RabbitMQ events.
 
@@ -92,12 +92,12 @@ This keeps the scheduler independent and avoids service-to-service polling.
 
 Responsible for all email-related behavior.
 
-For this assignment, actual emails are mocked with `console.log`.
+Email delivery is represented by structured logs. The service keeps the event-consumer flow in place while avoiding an external email provider dependency.
 
 Responsibilities:
 
 - Consume call-related events from RabbitMQ
-- Log mock email templates for:
+- Log email templates for:
   - call requested
   - call approved
   - call rejected
@@ -105,7 +105,7 @@ Responsibilities:
   - call reminder
   - daily digest
 
-To view mock emails, check the Docker logs:
+To view email logs, check the Docker logs:
 
 ```bash
 docker logs communication-service
@@ -119,7 +119,7 @@ docker compose logs -f communication-service
 
 ### Frontend
 
-A simple React frontend is included to demonstrate the backend functionality.
+A React frontend is included for the user and admin workflows.
 
 Frontend URL:
 
@@ -190,7 +190,7 @@ RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 ADMIN_EMAIL=amir@gmail.com
 ```
 
-Do not commit the real `.env` file.
+Real `.env` files are ignored by git; keep local secrets out of commits.
 
 ## Running with Docker Compose
 
@@ -295,30 +295,30 @@ call.reminder
 call.daily-digest
 ```
 
-## Idempotency Note
+## Operational Notes
 
-The system includes partial idempotency handling.
+### Idempotency
 
-The Scheduler Service handles duplicate `call.approved` events safely by using an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
+The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
 
-However, full idempotency for the Communication Service is not implemented yet. If RabbitMQ delivers the same email-related event more than once, the mock email log could be produced more than once.
+The Communication Service does not yet persist processed event ids. If RabbitMQ redelivers an email-related event, the email log can be produced more than once.
 
-In a production-ready version, I would add an event deduplication mechanism, such as a `processed_email_events` collection with a unique `eventId` or a unique key based on `routingKey + callRequestId`. The Communication Service would check this collection before sending/logging an email and skip already processed events.
+The usual next step is a `processed_email_events` collection with a unique `eventId`, or a unique key based on `routingKey + callRequestId`.
 
-## Reminder Timing Assumption
+### Reminder Timing
 
-The assignment text mentions both:
+The requirements mention both reminder timings:
 
 - 30 minutes before call reminder
 - 2 hours before scheduled call reminder
 
 This implementation follows the lifecycle table and sends reminder events 2 hours before the scheduled call.
 
-## Slot Availability Assumption
+### Slot Availability
 
 When checking calendar availability or booking a slot, the system relies on `REQUESTED` and `SCHEDULED` statuses to block the calendar.
 
-If an admin successfully marks a call as `CALLED`, the assumption is that the call is over and happened in the past. Since the API natively rejects any attempts to book past dates or same-day dates, a slot that is marked `CALLED` is inherently prevented from being re-booked. Therefore, `CALLED` is intentionally omitted from the availability validation algorithm meant for future blocks.
+If an admin marks a call as `CALLED`, that call is treated as completed. Because the API rejects past dates and same-day bookings, completed calls are not considered active future calendar blocks. `CALLED` is intentionally omitted from the availability check.
 
 ## Daily Digest
 
@@ -326,9 +326,9 @@ The Scheduler Service publishes a daily digest event for scheduled calls.
 
 The Communication Service consumes this event and logs one admin digest email.
 
-## Mock Emails
+## Email Logs
 
-Emails are not actually sent. They are logged by the Communication Service.
+Emails are not sent by an external provider. They are logged by the Communication Service.
 
 Example:
 
@@ -336,7 +336,7 @@ Example:
 docker compose logs -f communication-service
 ```
 
-You should see logs for templates such as:
+Expected templates include:
 
 ```text
 CALL_REQUESTED
