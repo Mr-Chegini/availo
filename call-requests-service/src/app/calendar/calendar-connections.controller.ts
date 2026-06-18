@@ -15,7 +15,7 @@ export class CalendarConnectionsController {
   }
 
   @Post('google/start')
-  startGoogleConnection() {
-    return this.calendarConnectionsService.startGoogleConnection();
+  startGoogleConnection(@Query('ownerId') ownerId = DEFAULT_OWNER_ID) {
+    return this.calendarConnectionsService.startGoogleConnection(ownerId);
   }
 }

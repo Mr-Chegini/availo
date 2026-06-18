@@ -1,6 +1,7 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import type { CalendarProviderName } from './calendar-account.schema';
+import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 
 export interface CalendarConnectionDto {
   id: string;
@@ -12,10 +13,15 @@ export interface CalendarConnectionDto {
   updatedAt: string;
 }
 
+export interface StartCalendarConnectionResponseDto {
+  authorizationUrl: string;
+}
+
 @Injectable()
 export class CalendarConnectionsService {
   constructor(
     private readonly calendarAccountsService: CalendarAccountsService,
+    private readonly googleCalendarOAuthService: GoogleCalendarOAuthService,
   ) {}
 
   async listConnections(ownerId: string): Promise<CalendarConnectionDto[]> {
@@ -33,9 +39,18 @@ export class CalendarConnectionsService {
     }));
   }
 
-  startGoogleConnection(): never {
-    throw new NotImplementedException(
-      'Google Calendar connection is not configured yet',
-    );
+  startGoogleConnection(ownerId: string): StartCalendarConnectionResponseDto {
+    try {
+      return {
+        authorizationUrl:
+          this.googleCalendarOAuthService.createAuthorizationUrl(ownerId),
+      };
+    } catch (error) {
+      if (error instanceof NotImplementedException) {
+        throw error;
+      }
+
+      throw error;
+    }
   }
 }

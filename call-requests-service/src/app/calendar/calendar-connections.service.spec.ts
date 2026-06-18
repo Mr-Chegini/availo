@@ -21,6 +21,9 @@ describe('CalendarConnectionsService', () => {
     };
     const service = new CalendarConnectionsService(
       calendarAccountsService as unknown as never,
+      {
+        createAuthorizationUrl: vi.fn(),
+      } as unknown as never,
     );
 
     await expect(service.listConnections('owner-1')).resolves.toEqual([
@@ -39,12 +42,38 @@ describe('CalendarConnectionsService', () => {
     );
   });
 
-  it('returns an explicit not implemented error before Google OAuth is configured', () => {
-    const service = new CalendarConnectionsService({
-      findActiveByOwner: vi.fn(),
-    } as unknown as never);
+  it('starts Google connection by returning an authorization URL', () => {
+    const service = new CalendarConnectionsService(
+      {
+        findActiveByOwner: vi.fn(),
+      } as unknown as never,
+      {
+        createAuthorizationUrl: vi
+          .fn()
+          .mockReturnValue('https://accounts.google.com/oauth'),
+      } as unknown as never,
+    );
 
-    expect(() => service.startGoogleConnection()).toThrow(
+    expect(service.startGoogleConnection('owner-1')).toEqual({
+      authorizationUrl: 'https://accounts.google.com/oauth',
+    });
+  });
+
+  it('returns an explicit not implemented error before Google OAuth is configured', () => {
+    const service = new CalendarConnectionsService(
+      {
+        findActiveByOwner: vi.fn(),
+      } as unknown as never,
+      {
+        createAuthorizationUrl: vi.fn(() => {
+          throw new NotImplementedException(
+            'Google Calendar OAuth is not configured yet',
+          );
+        }),
+      } as unknown as never,
+    );
+
+    expect(() => service.startGoogleConnection('owner-1')).toThrow(
       NotImplementedException,
     );
   });
