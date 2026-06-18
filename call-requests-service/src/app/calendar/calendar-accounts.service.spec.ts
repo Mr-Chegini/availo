@@ -4,6 +4,10 @@ import { CalendarAccountsService } from './calendar-accounts.service';
 import type { CalendarAccountDocument } from './calendar-account.schema';
 
 describe('CalendarAccountsService', () => {
+  const createTokenProtector = () => ({
+    protect: vi.fn((token: string) => `protected:${token}`),
+  });
+
   it('finds active calendar accounts by owner', async () => {
     const calendarAccounts = [{ ownerId: 'owner-1' }];
     const model = {
@@ -13,7 +17,10 @@ describe('CalendarAccountsService', () => {
         }),
       }),
     };
-    const service = new CalendarAccountsService(model as unknown as never);
+    const service = new CalendarAccountsService(
+      model as unknown as never,
+      createTokenProtector() as unknown as never,
+    );
 
     await expect(service.findActiveByOwner('owner-1')).resolves.toBe(
       calendarAccounts,
@@ -32,7 +39,11 @@ describe('CalendarAccountsService', () => {
         exec: vi.fn().mockResolvedValue(calendarAccount),
       }),
     };
-    const service = new CalendarAccountsService(model as unknown as never);
+    const tokenProtector = createTokenProtector();
+    const service = new CalendarAccountsService(
+      model as unknown as never,
+      tokenProtector as unknown as never,
+    );
 
     await expect(
       service.upsertConnectedAccount({
@@ -55,8 +66,8 @@ describe('CalendarAccountsService', () => {
       {
         $set: {
           primaryCalendarId: 'primary',
-          accessToken: 'access-token',
-          refreshToken: 'refresh-token',
+          accessToken: 'protected:access-token',
+          refreshToken: 'protected:refresh-token',
           tokenExpiresAt,
           isActive: true,
         },
@@ -71,6 +82,8 @@ describe('CalendarAccountsService', () => {
         upsert: true,
       },
     );
+    expect(tokenProtector.protect).toHaveBeenCalledWith('access-token');
+    expect(tokenProtector.protect).toHaveBeenCalledWith('refresh-token');
   });
 
   it('updates OAuth token fields for a calendar account', async () => {
@@ -84,7 +97,11 @@ describe('CalendarAccountsService', () => {
         exec: vi.fn().mockResolvedValue(calendarAccount),
       }),
     };
-    const service = new CalendarAccountsService(model as unknown as never);
+    const tokenProtector = createTokenProtector();
+    const service = new CalendarAccountsService(
+      model as unknown as never,
+      tokenProtector as unknown as never,
+    );
 
     await expect(
       service.updateTokens({
@@ -99,8 +116,8 @@ describe('CalendarAccountsService', () => {
       'account-1',
       {
         $set: {
-          accessToken: 'new-access-token',
-          refreshToken: 'new-refresh-token',
+          accessToken: 'protected:new-access-token',
+          refreshToken: 'protected:new-refresh-token',
           tokenExpiresAt,
         },
       },
@@ -108,6 +125,8 @@ describe('CalendarAccountsService', () => {
         new: true,
       },
     );
+    expect(tokenProtector.protect).toHaveBeenCalledWith('new-access-token');
+    expect(tokenProtector.protect).toHaveBeenCalledWith('new-refresh-token');
   });
 
   it('throws when updating token fields for a missing calendar account', async () => {
@@ -116,7 +135,10 @@ describe('CalendarAccountsService', () => {
         exec: vi.fn().mockResolvedValue(null),
       }),
     };
-    const service = new CalendarAccountsService(model as unknown as never);
+    const service = new CalendarAccountsService(
+      model as unknown as never,
+      createTokenProtector() as unknown as never,
+    );
 
     await expect(
       service.updateTokens({

@@ -9,6 +9,7 @@ import {
 import { CalendarAccountsService } from './calendar-accounts.service';
 import { CalendarConnectionsController } from './calendar-connections.controller';
 import { CalendarConnectionsService } from './calendar-connections.service';
+import { CalendarTokenProtector } from './calendar-token-protector.service';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 
 @Module({
@@ -23,6 +24,7 @@ import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
   providers: [
     CalendarAccountsService,
     CalendarConnectionsService,
+    CalendarTokenProtector,
     GoogleCalendarOAuthService,
     LocalCalendarProvider,
     {

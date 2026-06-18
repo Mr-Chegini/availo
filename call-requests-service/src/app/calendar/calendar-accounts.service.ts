@@ -6,6 +6,7 @@ import {
   type CalendarAccountDocument,
   type CalendarProviderName,
 } from './calendar-account.schema';
+import { CalendarTokenProtector } from './calendar-token-protector.service';
 
 export interface UpsertConnectedCalendarAccountInput {
   ownerId: string;
@@ -29,6 +30,7 @@ export class CalendarAccountsService {
   constructor(
     @InjectModel(CalendarAccount.name)
     private readonly calendarAccountModel: Model<CalendarAccountDocument>,
+    private readonly calendarTokenProtector: CalendarTokenProtector,
   ) {}
 
   async findActiveByOwner(ownerId: string): Promise<CalendarAccountDocument[]> {
@@ -54,8 +56,8 @@ export class CalendarAccountsService {
         {
           $set: {
             primaryCalendarId: input.primaryCalendarId,
-            accessToken: input.accessToken,
-            refreshToken: input.refreshToken,
+            accessToken: this.protectOptionalToken(input.accessToken),
+            refreshToken: this.protectOptionalToken(input.refreshToken),
             tokenExpiresAt: input.tokenExpiresAt,
             isActive: true,
           },
@@ -81,8 +83,8 @@ export class CalendarAccountsService {
         input.accountId,
         {
           $set: {
-            accessToken: input.accessToken,
-            refreshToken: input.refreshToken,
+            accessToken: this.calendarTokenProtector.protect(input.accessToken),
+            refreshToken: this.protectOptionalToken(input.refreshToken),
             tokenExpiresAt: input.tokenExpiresAt,
           },
         },
@@ -97,5 +99,13 @@ export class CalendarAccountsService {
     }
 
     return calendarAccount;
+  }
+
+  private protectOptionalToken(token: string | undefined): string | undefined {
+    if (!token) {
+      return undefined;
+    }
+
+    return this.calendarTokenProtector.protect(token);
   }
 }
