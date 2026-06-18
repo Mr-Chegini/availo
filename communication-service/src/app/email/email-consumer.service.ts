@@ -173,9 +173,7 @@ export class EmailConsumerService
         if (
           await this.processedEmailEventsService.hasProcessed(idempotencyKey)
         ) {
-          this.logger.log(
-            `Skipping duplicate email event ${idempotencyKey}`,
-          );
+          this.logger.log(`Skipping duplicate email event ${idempotencyKey}`);
           this.channel?.ack(message);
           return;
         }

@@ -1,8 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import type { HydratedDocument } from 'mongoose';
 
-export type ProcessedEmailEventDocument =
-  HydratedDocument<ProcessedEmailEvent>;
+export type ProcessedEmailEventDocument = HydratedDocument<ProcessedEmailEvent>;
 
 @Schema({
   timestamps: true,

@@ -41,7 +41,9 @@ import { EmailModule } from './email/email.module';
         ),
 
         ADMIN_EMAIL: Joi.string().email().required(),
-        EMAIL_PROVIDER: Joi.string().valid('console', 'smtp').default('console'),
+        EMAIL_PROVIDER: Joi.string()
+          .valid('console', 'smtp')
+          .default('console'),
         EMAIL_FROM: Joi.when('EMAIL_PROVIDER', {
           is: 'smtp',
           then: Joi.string().email().required(),
