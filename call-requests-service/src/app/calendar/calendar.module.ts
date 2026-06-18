@@ -6,6 +6,7 @@ import {
   CalendarAccount,
   CalendarAccountSchema,
 } from './calendar-account.schema';
+import { CalendarAccountsService } from './calendar-accounts.service';
 
 @Module({
   imports: [
@@ -17,12 +18,13 @@ import {
     ]),
   ],
   providers: [
+    CalendarAccountsService,
     LocalCalendarProvider,
     {
       provide: CALENDAR_PROVIDER,
       useExisting: LocalCalendarProvider,
     },
   ],
-  exports: [CALENDAR_PROVIDER],
+  exports: [CALENDAR_PROVIDER, CalendarAccountsService],
 })
 export class CalendarModule {}
