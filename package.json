@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
+    "test:calendar": "vitest run call-requests-service/src/app/calendar",
     "test:call-requests": "vitest run call-requests-service/src/app/call-requests",
     "test:communication": "vitest run communication-service/src/app/email"
   },
