@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import {
@@ -13,6 +13,13 @@ export interface UpsertConnectedCalendarAccountInput {
   providerAccountId: string;
   primaryCalendarId: string;
   accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: Date;
+}
+
+export interface UpdateCalendarAccountTokensInput {
+  accountId: string;
+  accessToken: string;
   refreshToken?: string;
   tokenExpiresAt?: Date;
 }
@@ -64,5 +71,31 @@ export class CalendarAccountsService {
         },
       )
       .exec();
+  }
+
+  async updateTokens(
+    input: UpdateCalendarAccountTokensInput,
+  ): Promise<CalendarAccountDocument> {
+    const calendarAccount = await this.calendarAccountModel
+      .findByIdAndUpdate(
+        input.accountId,
+        {
+          $set: {
+            accessToken: input.accessToken,
+            refreshToken: input.refreshToken,
+            tokenExpiresAt: input.tokenExpiresAt,
+          },
+        },
+        {
+          new: true,
+        },
+      )
+      .exec();
+
+    if (!calendarAccount) {
+      throw new NotFoundException('Calendar account was not found');
+    }
+
+    return calendarAccount;
   }
 }

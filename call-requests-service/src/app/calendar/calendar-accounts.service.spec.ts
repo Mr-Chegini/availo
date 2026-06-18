@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import type { CalendarAccountDocument } from './calendar-account.schema';
@@ -70,5 +71,58 @@ describe('CalendarAccountsService', () => {
         upsert: true,
       },
     );
+  });
+
+  it('updates OAuth token fields for a calendar account', async () => {
+    const tokenExpiresAt = new Date('2030-01-01T00:00:00.000Z');
+    const calendarAccount = {
+      id: 'account-1',
+      accessToken: 'new-access-token',
+    };
+    const model = {
+      findByIdAndUpdate: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(calendarAccount),
+      }),
+    };
+    const service = new CalendarAccountsService(model as unknown as never);
+
+    await expect(
+      service.updateTokens({
+        accountId: 'account-1',
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        tokenExpiresAt,
+      }),
+    ).resolves.toBe(calendarAccount as CalendarAccountDocument);
+
+    expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+      'account-1',
+      {
+        $set: {
+          accessToken: 'new-access-token',
+          refreshToken: 'new-refresh-token',
+          tokenExpiresAt,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+  });
+
+  it('throws when updating token fields for a missing calendar account', async () => {
+    const model = {
+      findByIdAndUpdate: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(null),
+      }),
+    };
+    const service = new CalendarAccountsService(model as unknown as never);
+
+    await expect(
+      service.updateTokens({
+        accountId: 'missing-account',
+        accessToken: 'new-access-token',
+      }),
+    ).rejects.toThrow(NotFoundException);
   });
 });
