@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -30,6 +31,10 @@ import {
 } from './call-request-booking-rules';
 import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
 import { normalizeCreateCallRequestInput } from './create-call-request-input';
+import {
+  CALENDAR_PROVIDER,
+  type CalendarProvider,
+} from '../calendar/calendar-provider';
 
 @Injectable()
 export class CallRequestsService {
@@ -37,11 +42,12 @@ export class CallRequestsService {
     @InjectModel(CallRequest.name)
     private readonly callRequestModel: Model<CallRequestDocument>,
     private readonly rabbitmqPublisherService: RabbitmqPublisherService,
+    @Inject(CALENDAR_PROVIDER)
+    private readonly calendarProvider: CalendarProvider,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
-    const { email, phoneNumber, scheduledAt } =
-      this.normalizeCreateInput(dto);
+    const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
 
     this.validateScheduledAt(scheduledAt);
 
@@ -160,6 +166,15 @@ export class CallRequestsService {
         callRequest.scheduledAt.toISOString(),
       ),
     );
+
+    const externalBusySlots = await this.calendarProvider.getBusySlots({
+      from: startOfWorkingDay.toUTC().toISO() ?? '',
+      to: endOfWorkingDay.toUTC().toISO() ?? '',
+    });
+
+    for (const busySlot of externalBusySlots) {
+      reservedTimes.add(busySlot.startsAt);
+    }
 
     const slots: AvailabilitySlotDto[] = [];
 
