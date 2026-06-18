@@ -1,0 +1,21 @@
+import { Controller, Get, Post, Query } from '@nestjs/common';
+import { CalendarConnectionsService } from './calendar-connections.service';
+
+const DEFAULT_OWNER_ID = 'default-admin';
+
+@Controller('calendar-connections')
+export class CalendarConnectionsController {
+  constructor(
+    private readonly calendarConnectionsService: CalendarConnectionsService,
+  ) {}
+
+  @Get()
+  listConnections(@Query('ownerId') ownerId = DEFAULT_OWNER_ID) {
+    return this.calendarConnectionsService.listConnections(ownerId);
+  }
+
+  @Post('google/start')
+  startGoogleConnection() {
+    return this.calendarConnectionsService.startGoogleConnection();
+  }
+}
