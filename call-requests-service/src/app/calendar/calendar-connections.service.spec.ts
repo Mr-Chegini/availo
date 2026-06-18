@@ -1,4 +1,4 @@
-import { NotImplementedException } from '@nestjs/common';
+import { BadRequestException, NotImplementedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { CalendarConnectionsService } from './calendar-connections.service';
 
@@ -76,5 +76,45 @@ describe('CalendarConnectionsService', () => {
     expect(() => service.startGoogleConnection('owner-1')).toThrow(
       NotImplementedException,
     );
+  });
+
+  it('handles Google callback with a valid signed state', () => {
+    const service = new CalendarConnectionsService(
+      {
+        findActiveByOwner: vi.fn(),
+      } as unknown as never,
+      {
+        createAuthorizationUrl: vi.fn(),
+        verifyState: vi.fn().mockReturnValue({
+          ownerId: 'owner-1',
+          issuedAt: '2030-01-01T00:00:00.000Z',
+        }),
+      } as unknown as never,
+    );
+
+    expect(
+      service.handleGoogleCallback('authorization-code', 'signed-state'),
+    ).toEqual({
+      ownerId: 'owner-1',
+      message: 'Google Calendar OAuth callback verified',
+    });
+  });
+
+  it('rejects a Google callback with invalid or tampered state', () => {
+    const service = new CalendarConnectionsService(
+      {
+        findActiveByOwner: vi.fn(),
+      } as unknown as never,
+      {
+        createAuthorizationUrl: vi.fn(),
+        verifyState: vi.fn(() => {
+          throw new Error('Invalid Google Calendar OAuth state');
+        }),
+      } as unknown as never,
+    );
+
+    expect(() =>
+      service.handleGoogleCallback('authorization-code', 'tampered-state'),
+    ).toThrow(BadRequestException);
   });
 });

@@ -18,4 +18,12 @@ export class CalendarConnectionsController {
   startGoogleConnection(@Query('ownerId') ownerId = DEFAULT_OWNER_ID) {
     return this.calendarConnectionsService.startGoogleConnection(ownerId);
   }
+
+  @Get('google/callback')
+  handleGoogleCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+  ) {
+    return this.calendarConnectionsService.handleGoogleCallback(code, state);
+  }
 }

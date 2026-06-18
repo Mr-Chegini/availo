@@ -1,4 +1,8 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotImplementedException,
+} from '@nestjs/common';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import type { CalendarProviderName } from './calendar-account.schema';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
@@ -15,6 +19,11 @@ export interface CalendarConnectionDto {
 
 export interface StartCalendarConnectionResponseDto {
   authorizationUrl: string;
+}
+
+export interface GoogleCalendarCallbackResponseDto {
+  ownerId: string;
+  message: string;
 }
 
 @Injectable()
@@ -51,6 +60,34 @@ export class CalendarConnectionsService {
       }
 
       throw error;
+    }
+  }
+
+  handleGoogleCallback(
+    code: string | undefined,
+    state: string | undefined,
+  ): GoogleCalendarCallbackResponseDto {
+    if (!code) {
+      throw new BadRequestException('Google Calendar OAuth code is required');
+    }
+
+    if (!state) {
+      throw new BadRequestException('Google Calendar OAuth state is required');
+    }
+
+    try {
+      const payload = this.googleCalendarOAuthService.verifyState(state);
+
+      return {
+        ownerId: payload.ownerId,
+        message: 'Google Calendar OAuth callback verified',
+      };
+    } catch (error) {
+      if (error instanceof NotImplementedException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Invalid Google Calendar OAuth state');
     }
   }
 }
