@@ -22,6 +22,7 @@ import { CallRequestsModule } from './call-requests/call-requests.module';
         RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
 
         GOOGLE_CALENDAR_CLIENT_ID: Joi.string().optional(),
+        GOOGLE_CALENDAR_CLIENT_SECRET: Joi.string().optional(),
         GOOGLE_CALENDAR_REDIRECT_URI: Joi.string().uri().optional(),
         GOOGLE_CALENDAR_STATE_SECRET: Joi.string().optional(),
       }),

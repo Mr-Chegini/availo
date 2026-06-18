@@ -1,9 +1,11 @@
 import { Injectable, NotImplementedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { createHmac, timingSafeEqual } from 'crypto';
 
 const GOOGLE_OAUTH_AUTHORIZATION_URL =
   'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
@@ -13,6 +15,22 @@ const GOOGLE_CALENDAR_SCOPES = [
 interface OAuthStatePayload {
   ownerId: string;
   issuedAt: string;
+}
+
+export interface GoogleCalendarTokenResponse {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn: number;
+  tokenType: string;
+  scope?: string;
+}
+
+interface GoogleOAuthTokenApiResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  token_type: string;
+  scope?: string;
 }
 
 @Injectable()
@@ -58,6 +76,52 @@ export class GoogleCalendarOAuthService {
     );
 
     return authorizationUrl.toString();
+  }
+
+  async exchangeAuthorizationCode(
+    code: string,
+  ): Promise<GoogleCalendarTokenResponse> {
+    const clientId = this.configService.get<string>(
+      'GOOGLE_CALENDAR_CLIENT_ID',
+    );
+    const clientSecret = this.configService.get<string>(
+      'GOOGLE_CALENDAR_CLIENT_SECRET',
+    );
+    const redirectUri = this.configService.get<string>(
+      'GOOGLE_CALENDAR_REDIRECT_URI',
+    );
+
+    if (!clientId || !clientSecret || !redirectUri) {
+      throw new NotImplementedException(
+        'Google Calendar OAuth is not configured yet',
+      );
+    }
+
+    const body = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    });
+
+    const response = await axios.post<GoogleOAuthTokenApiResponse>(
+      GOOGLE_OAUTH_TOKEN_URL,
+      body,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+
+    return {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expiresIn: response.data.expires_in,
+      tokenType: response.data.token_type,
+      scope: response.data.scope,
+    };
   }
 
   verifyState(state: string): OAuthStatePayload {

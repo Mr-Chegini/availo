@@ -1,25 +1,30 @@
 import { NotImplementedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { describe, expect, it, vi } from 'vitest';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 
+vi.mock('axios');
+
 describe('GoogleCalendarOAuthService', () => {
-  it('builds a Google OAuth authorization URL', () => {
-    const configService = {
+  const createConfigService = (overrides: Record<string, string> = {}) =>
+    ({
       get: vi.fn((key: string) => {
         const values: Record<string, string> = {
           GOOGLE_CALENDAR_CLIENT_ID: 'google-client-id',
+          GOOGLE_CALENDAR_CLIENT_SECRET: 'google-client-secret',
           GOOGLE_CALENDAR_REDIRECT_URI:
             'https://availo.example.com/api/calendar-connections/google/callback',
           GOOGLE_CALENDAR_STATE_SECRET: 'state-secret',
+          ...overrides,
         };
 
         return values[key];
       }),
-    };
-    const service = new GoogleCalendarOAuthService(
-      configService as unknown as ConfigService,
-    );
+    }) as unknown as ConfigService;
+
+  it('builds a Google OAuth authorization URL', () => {
+    const service = new GoogleCalendarOAuthService(createConfigService());
 
     const authorizationUrl = new URL(service.createAuthorizationUrl('owner-1'));
 
@@ -46,18 +51,7 @@ describe('GoogleCalendarOAuthService', () => {
   });
 
   it('rejects a tampered OAuth state value', () => {
-    const service = new GoogleCalendarOAuthService({
-      get: vi.fn((key: string) => {
-        const values: Record<string, string> = {
-          GOOGLE_CALENDAR_CLIENT_ID: 'google-client-id',
-          GOOGLE_CALENDAR_REDIRECT_URI:
-            'https://availo.example.com/api/calendar-connections/google/callback',
-          GOOGLE_CALENDAR_STATE_SECRET: 'state-secret',
-        };
-
-        return values[key];
-      }),
-    } as unknown as ConfigService);
+    const service = new GoogleCalendarOAuthService(createConfigService());
     const state = new URL(
       service.createAuthorizationUrl('owner-1'),
     ).searchParams.get('state');
@@ -65,6 +59,47 @@ describe('GoogleCalendarOAuthService', () => {
     expect(() => service.verifyState(`${state}tampered`)).toThrow(
       'Invalid Google Calendar OAuth state',
     );
+  });
+
+  it('exchanges an authorization code for Google OAuth tokens', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        access_token: 'google-access-token',
+        refresh_token: 'google-refresh-token',
+        expires_in: 3600,
+        token_type: 'Bearer',
+        scope: 'https://www.googleapis.com/auth/calendar.freebusy',
+      },
+    });
+    const service = new GoogleCalendarOAuthService(createConfigService());
+
+    await expect(
+      service.exchangeAuthorizationCode('authorization-code'),
+    ).resolves.toEqual({
+      accessToken: 'google-access-token',
+      refreshToken: 'google-refresh-token',
+      expiresIn: 3600,
+      tokenType: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/calendar.freebusy',
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://oauth2.googleapis.com/token',
+      expect.any(URLSearchParams),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+    const body = vi.mocked(axios.post).mock.calls[0]?.[1] as URLSearchParams;
+    expect(body.get('code')).toBe('authorization-code');
+    expect(body.get('client_id')).toBe('google-client-id');
+    expect(body.get('client_secret')).toBe('google-client-secret');
+    expect(body.get('redirect_uri')).toBe(
+      'https://availo.example.com/api/calendar-connections/google/callback',
+    );
+    expect(body.get('grant_type')).toBe('authorization_code');
   });
 
   it('throws when OAuth config is missing', () => {
