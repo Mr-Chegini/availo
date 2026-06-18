@@ -90,6 +90,7 @@ services:
     environment:
       NODE_ENV: production
       COMMUNICATION_SERVICE_PORT: 3002
+      MONGODB_URI: mongodb://mongodb:27017/call-reservation
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       RABBITMQ_CALLS_EXCHANGE: calls.exchange
       RABBITMQ_CALL_REQUESTED_QUEUE: communication.call-requested
@@ -98,8 +99,17 @@ services:
       RABBITMQ_CALL_CANCELED_QUEUE: communication.call-canceled
       RABBITMQ_CALL_REMINDER_QUEUE: communication.call-reminder
       RABBITMQ_DAILY_DIGEST_QUEUE: communication.daily-digest
-      ADMIN_EMAIL: amir@gmail.com
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-amir@gmail.com}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@example.com}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
     depends_on:
+      mongodb:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
 

@@ -188,19 +188,28 @@ RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 
 ADMIN_EMAIL=amir@gmail.com
+
+EMAIL_PROVIDER=console
+EMAIL_FROM=no-reply@example.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASSWORD=your-smtp-password
 ```
 
 Real `.env` files are ignored by git; keep local secrets out of commits.
 
 ## Running with Docker Compose
 
-The Docker Compose file is inside the `scripts` folder.
+The Docker Compose file is inside the `scripts` folder. Pass the root `.env`
+file explicitly so Compose can read email provider settings such as Mailtrap
+SMTP credentials.
 
 From the root project directory:
 
 ```bash
-cd scripts
-docker compose up --build
+docker compose --env-file .env -f scripts/docker-compose.yml up --build
 ```
 
 Services:
@@ -301,9 +310,9 @@ call.daily-digest
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
 
-The Communication Service does not yet persist processed event ids. If RabbitMQ redelivers an email-related event, the email log can be produced more than once.
+The Communication Service stores processed email idempotency keys in MongoDB. If RabbitMQ redelivers the same email-related event, the service acknowledges it without sending/logging the email again.
 
-The usual next step is a `processed_email_events` collection with a unique `eventId`, or a unique key based on `routingKey + callRequestId`.
+The key is derived from the routing key and message body and is stored in the `processed_email_events` collection.
 
 ### Reminder Timing
 
@@ -326,11 +335,36 @@ The Scheduler Service publishes a daily digest event for scheduled calls.
 
 The Communication Service consumes this event and logs one admin digest email.
 
-## Email Logs
+## Email Delivery
 
-Emails are not sent by an external provider. They are logged by the Communication Service.
+The Communication Service sends emails through an `EmailSender` abstraction.
 
-Example:
+Available providers:
+
+- `console`: logs emails locally; this is the default
+- `smtp`: sends email through any SMTP-compatible provider
+
+Free SMTP-compatible providers can be used for development or early production trials. Brevo, Mailtrap, and similar services work with this setup. AWS SES can be added later as a separate `EmailSender` implementation without changing the event consumer.
+
+For local logs:
+
+```env
+EMAIL_PROVIDER=console
+```
+
+For SMTP delivery:
+
+```env
+EMAIL_PROVIDER=smtp
+EMAIL_FROM=no-reply@example.com
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-smtp-user
+SMTP_PASSWORD=your-smtp-password
+```
+
+To inspect console emails while running Docker Compose:
 
 ```bash
 docker compose logs -f communication-service
