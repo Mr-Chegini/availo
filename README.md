@@ -202,13 +202,14 @@ Real `.env` files are ignored by git; keep local secrets out of commits.
 
 ## Running with Docker Compose
 
-The Docker Compose file is inside the `scripts` folder.
+The Docker Compose file is inside the `scripts` folder. Pass the root `.env`
+file explicitly so Compose can read email provider settings such as Mailtrap
+SMTP credentials.
 
 From the root project directory:
 
 ```bash
-cd scripts
-docker compose up --build
+docker compose --env-file .env -f scripts/docker-compose.yml up --build
 ```
 
 Services:
