@@ -35,6 +35,7 @@ import {
   CALENDAR_PROVIDER,
   type CalendarProvider,
 } from '../calendar/calendar-provider';
+import { EventTypesService } from '../hosts/event-types.service';
 
 @Injectable()
 export class CallRequestsService {
@@ -44,6 +45,7 @@ export class CallRequestsService {
     private readonly rabbitmqPublisherService: RabbitmqPublisherService,
     @Inject(CALENDAR_PROVIDER)
     private readonly calendarProvider: CalendarProvider,
+    private readonly eventTypesService: EventTypesService,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
@@ -146,6 +148,7 @@ export class CallRequestsService {
       return [];
     }
 
+    const eventDurationMinutes = await this.getDefaultEventDurationMinutes();
     const { startOfWorkingDay, endOfWorkingDay } = getWorkingDayBounds(day);
 
     const existingCallRequests = await this.callRequestModel
@@ -161,20 +164,10 @@ export class CallRequestsService {
       .select('scheduledAt')
       .lean();
 
-    const reservedTimes = new Set(
-      existingCallRequests.map((callRequest) =>
-        callRequest.scheduledAt.toISOString(),
-      ),
-    );
-
     const externalBusySlots = await this.calendarProvider.getBusySlots({
       from: startOfWorkingDay.toUTC().toISO() ?? '',
       to: endOfWorkingDay.toUTC().toISO() ?? '',
     });
-
-    for (const busySlot of externalBusySlots) {
-      reservedTimes.add(busySlot.startsAt);
-    }
 
     const slots: AvailabilitySlotDto[] = [];
 
@@ -182,10 +175,19 @@ export class CallRequestsService {
 
     while (currentSlot < endOfWorkingDay) {
       const scheduledAt = currentSlot.toUTC().toJSDate().toISOString();
+      const slotStartsAt = currentSlot.toUTC();
+      const slotEndsAt = slotStartsAt.plus({
+        minutes: eventDurationMinutes,
+      });
 
       slots.push({
         scheduledAt,
-        available: !reservedTimes.has(scheduledAt),
+        available: !this.hasAvailabilityConflict({
+          slotStartsAt,
+          slotEndsAt,
+          localReservations: existingCallRequests,
+          externalBusySlots,
+        }),
       });
 
       currentSlot = currentSlot.plus({ minutes: SLOT_INTERVAL_MINUTES });
@@ -216,11 +218,15 @@ export class CallRequestsService {
 
     callRequest.status = CallRequestStatus.SCHEDULED;
     await callRequest.save();
+    const eventDurationMinutes = await this.getDefaultEventDurationMinutes();
 
     await this.calendarProvider.createEvent({
       title: `Call with ${callRequest.email}`,
       startsAt: callRequest.scheduledAt.toISOString(),
-      endsAt: this.getCallEndsAt(callRequest.scheduledAt).toISOString(),
+      endsAt: this.getCallEndsAt(
+        callRequest.scheduledAt,
+        eventDurationMinutes,
+      ).toISOString(),
       attendeeEmail: callRequest.email,
       attendeePhoneNumber: callRequest.phoneNumber,
     });
@@ -343,11 +349,61 @@ export class CallRequestsService {
     };
   }
 
-  private getCallEndsAt(startsAt: Date): Date {
+  private async getDefaultEventDurationMinutes(): Promise<number> {
+    const eventType = await this.eventTypesService.findDefaultActiveEventType();
+
+    return eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES;
+  }
+
+  private hasAvailabilityConflict(input: {
+    slotStartsAt: DateTime;
+    slotEndsAt: DateTime;
+    localReservations: Array<{ scheduledAt: Date }>;
+    externalBusySlots: Array<{ startsAt: string; endsAt: string }>;
+  }): boolean {
+    const localConflict = input.localReservations.some((callRequest) => {
+      const startsAt = DateTime.fromJSDate(callRequest.scheduledAt);
+      const endsAt = startsAt.plus({ minutes: SLOT_INTERVAL_MINUTES });
+
+      return rangesOverlap(
+        input.slotStartsAt,
+        input.slotEndsAt,
+        startsAt,
+        endsAt,
+      );
+    });
+
+    if (localConflict) {
+      return true;
+    }
+
+    return input.externalBusySlots.some((busySlot) => {
+      const startsAt = DateTime.fromISO(busySlot.startsAt);
+      const endsAt = DateTime.fromISO(busySlot.endsAt);
+
+      return rangesOverlap(
+        input.slotStartsAt,
+        input.slotEndsAt,
+        startsAt,
+        endsAt,
+      );
+    });
+  }
+
+  private getCallEndsAt(startsAt: Date, durationMinutes: number): Date {
     return DateTime.fromJSDate(startsAt)
-      .plus({ minutes: SLOT_INTERVAL_MINUTES })
+      .plus({ minutes: durationMinutes })
       .toJSDate();
   }
+}
+
+function rangesOverlap(
+  firstStartsAt: DateTime,
+  firstEndsAt: DateTime,
+  secondStartsAt: DateTime,
+  secondEndsAt: DateTime,
+): boolean {
+  return firstStartsAt < secondEndsAt && secondStartsAt < firstEndsAt;
 }
 
 function isDuplicateKeyError(error: unknown): boolean {

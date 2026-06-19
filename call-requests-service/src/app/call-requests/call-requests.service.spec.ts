@@ -6,6 +6,7 @@ import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.servic
 import { CallRequestsService } from './call-requests.service';
 import type { CallRequestDocument } from './call-request.schema';
 import type { CalendarProvider } from '../calendar/calendar-provider';
+import type { EventTypesService } from '../hosts/event-types.service';
 
 const SCHEDULED_AT = new Date('2026-05-15T07:00:00.000Z');
 const CREATED_AT = new Date('2026-05-10T07:00:00.000Z');
@@ -37,6 +38,9 @@ describe('CallRequestsService', () => {
     createEvent: ReturnType<typeof vi.fn>;
     cancelEvent: ReturnType<typeof vi.fn>;
   };
+  let eventTypesService: {
+    findDefaultActiveEventType: ReturnType<typeof vi.fn>;
+  };
   let service: CallRequestsService;
 
   beforeEach(() => {
@@ -52,11 +56,15 @@ describe('CallRequestsService', () => {
       createEvent: vi.fn().mockResolvedValue({}),
       cancelEvent: vi.fn().mockResolvedValue(undefined),
     };
+    eventTypesService = {
+      findDefaultActiveEventType: vi.fn().mockResolvedValue(null),
+    };
 
     service = new CallRequestsService(
       callRequestModel as unknown as Model<CallRequestDocument>,
       rabbitmqPublisherService as unknown as RabbitmqPublisherService,
       calendarProvider as unknown as CalendarProvider,
+      eventTypesService as unknown as EventTypesService,
     );
   });
 
@@ -80,6 +88,37 @@ describe('CallRequestsService', () => {
       from: '2030-01-01T07:00:00.000Z',
       to: '2030-01-01T15:00:00.000Z',
     });
+    expect(availability.slice(0, 3)).toEqual([
+      {
+        scheduledAt: '2030-01-01T07:00:00.000Z',
+        available: false,
+      },
+      {
+        scheduledAt: '2030-01-01T07:30:00.000Z',
+        available: false,
+      },
+      {
+        scheduledAt: '2030-01-01T08:00:00.000Z',
+        available: true,
+      },
+    ]);
+  });
+
+  it('uses the default event type duration when checking availability conflicts', async () => {
+    eventTypesService.findDefaultActiveEventType.mockResolvedValue({
+      durationMinutes: 60,
+    });
+    mockAvailabilityCallRequests([]);
+    calendarProvider.getBusySlots.mockResolvedValue([
+      {
+        startsAt: '2030-01-01T07:30:00.000Z',
+        endsAt: '2030-01-01T08:00:00.000Z',
+        source: 'google',
+      },
+    ]);
+
+    const availability = await service.getAvailability('2030-01-01');
+
     expect(availability.slice(0, 3)).toEqual([
       {
         scheduledAt: '2030-01-01T07:00:00.000Z',
@@ -121,6 +160,23 @@ describe('CallRequestsService', () => {
       },
     );
     expect(response.status).toBe(CallRequestStatus.SCHEDULED);
+  });
+
+  it('uses the default event type duration when creating approved calendar events', async () => {
+    eventTypesService.findDefaultActiveEventType.mockResolvedValue({
+      durationMinutes: 45,
+    });
+    const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
+    mockFindById(callRequest);
+
+    await service.approve('call-1');
+
+    expect(calendarProvider.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startsAt: '2026-05-15T07:00:00.000Z',
+        endsAt: '2026-05-15T07:45:00.000Z',
+      }),
+    );
   });
 
   it('rejects requested calls and publishes a rejection event', async () => {
