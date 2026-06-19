@@ -72,6 +72,52 @@ describe('EventTypesService', () => {
     expect(query.sort).toHaveBeenCalledWith({ createdAt: 1 });
   });
 
+  it('gets an active event type by host id and slug', async () => {
+    const eventType = {
+      slug: 'intro-call',
+    };
+    const eventTypeModel = {
+      findOne: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(eventType),
+      }),
+    };
+    const hostAccountsService = {
+      findDefaultOrCreate: vi.fn(),
+    };
+    const service = new EventTypesService(
+      eventTypeModel as unknown as never,
+      hostAccountsService as unknown as HostAccountsService,
+    );
+
+    await expect(
+      service.getActiveByHostIdAndSlug('host-1' as never, 'intro-call'),
+    ).resolves.toBe(eventType as EventTypeDocument);
+    expect(eventTypeModel.findOne).toHaveBeenCalledWith({
+      hostId: 'host-1',
+      slug: 'intro-call',
+      isActive: true,
+    });
+  });
+
+  it('throws when an active event type does not exist for a host id and slug', async () => {
+    const eventTypeModel = {
+      findOne: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(null),
+      }),
+    };
+    const hostAccountsService = {
+      findDefaultOrCreate: vi.fn(),
+    };
+    const service = new EventTypesService(
+      eventTypeModel as unknown as never,
+      hostAccountsService as unknown as HostAccountsService,
+    );
+
+    await expect(
+      service.getActiveByHostIdAndSlug('host-1' as never, 'missing'),
+    ).rejects.toThrow('Event type was not found');
+  });
+
   it('returns the existing default event type for the default host', async () => {
     const eventType = {
       slug: DEFAULT_EVENT_TYPE_SLUG,

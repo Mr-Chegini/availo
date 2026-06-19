@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, Types } from 'mongoose';
 import {
@@ -50,6 +50,25 @@ export class EventTypesService {
       })
       .sort({ createdAt: 1 })
       .exec();
+  }
+
+  async getActiveByHostIdAndSlug(
+    hostId: Types.ObjectId,
+    slug: string,
+  ): Promise<EventTypeDocument> {
+    const eventType = await this.eventTypeModel
+      .findOne({
+        hostId,
+        slug,
+        isActive: true,
+      })
+      .exec();
+
+    if (!eventType) {
+      throw new NotFoundException('Event type was not found');
+    }
+
+    return eventType;
   }
 
   private async findOldestActiveByHostId(

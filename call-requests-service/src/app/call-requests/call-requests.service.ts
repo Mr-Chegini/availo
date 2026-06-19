@@ -156,6 +156,21 @@ export class CallRequestsService {
 
   async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
     const availabilityRules = await this.getDefaultAvailabilityRules();
+
+    return this.getAvailabilityWithRules(date, availabilityRules);
+  }
+
+  async getAvailabilityForEventType(
+    date: string,
+    eventType: EventTypeDocument,
+  ): Promise<AvailabilitySlotDto[]> {
+    return this.getAvailabilityWithRules(date, getAvailabilityRules(eventType));
+  }
+
+  private async getAvailabilityWithRules(
+    date: string,
+    availabilityRules: AvailabilityRules,
+  ): Promise<AvailabilitySlotDto[]> {
     const day = DateTime.fromISO(date, {
       zone: availabilityRules.timezone,
     });

@@ -229,6 +229,28 @@ describe('CallRequestsService', () => {
     ]);
   });
 
+  it('uses an explicit event type when building public booking availability', async () => {
+    mockAvailabilityCallRequests([]);
+
+    const availability = await service.getAvailabilityForEventType(
+      '2030-01-01',
+      mockEventTypeRules({
+        durationMinutes: 45,
+        availabilityTimezone: 'UTC',
+        workdayStartHour: 9,
+        workdayEndHour: 11,
+        slotIntervalMinutes: 30,
+      }) as never,
+    );
+
+    expect(eventTypesService.findDefaultActiveEventType).not.toHaveBeenCalled();
+    expect(calendarProvider.getBusySlots).toHaveBeenCalledWith({
+      from: '2030-01-01T09:00:00.000Z',
+      to: '2030-01-01T11:00:00.000Z',
+    });
+    expect(availability).toHaveLength(4);
+  });
+
   it('approves requested calls and publishes an approval event', async () => {
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
     mockFindById(callRequest);
