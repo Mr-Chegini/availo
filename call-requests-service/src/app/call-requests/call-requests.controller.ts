@@ -6,12 +6,14 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import type {
   UpdateAdminNoteDto,
   CreateCallRequestDto,
 } from '@org/shared-types';
 import { CallRequestsService } from './call-requests.service';
+import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
 
 @Controller('call-requests')
 export class CallRequestsController {
@@ -23,6 +25,7 @@ export class CallRequestsController {
   }
 
   @Get()
+  @UseGuards(AdminApiKeyGuard)
   findAll() {
     return this.callRequestsService.findAll();
   }
@@ -33,26 +36,31 @@ export class CallRequestsController {
   }
 
   @Patch(':id/approve')
+  @UseGuards(AdminApiKeyGuard)
   approve(@Param('id') id: string) {
     return this.callRequestsService.approve(id);
   }
 
   @Patch(':id/reject')
+  @UseGuards(AdminApiKeyGuard)
   reject(@Param('id') id: string) {
     return this.callRequestsService.reject(id);
   }
 
   @Patch(':id/called')
+  @UseGuards(AdminApiKeyGuard)
   markAsCalled(@Param('id') id: string) {
     return this.callRequestsService.markAsCalled(id);
   }
 
   @Patch(':id/cancel')
+  @UseGuards(AdminApiKeyGuard)
   cancel(@Param('id') id: string) {
     return this.callRequestsService.cancel(id);
   }
 
   @Patch(':id/admin-note')
+  @UseGuards(AdminApiKeyGuard)
   updateAdminNote(@Param('id') id: string, @Body() dto: UpdateAdminNoteDto) {
     return this.callRequestsService.updateAdminNote(id, dto);
   }

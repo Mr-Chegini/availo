@@ -22,6 +22,12 @@ import { HostsModule } from './hosts/hosts.module';
         RABBITMQ_URL: Joi.string().required(),
         RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
 
+        ADMIN_API_KEY: Joi.when('NODE_ENV', {
+          is: 'production',
+          then: Joi.string().min(16).required(),
+          otherwise: Joi.string().default('dev-admin-key'),
+        }),
+
         CALENDAR_TOKEN_ENCRYPTION_SECRET: Joi.string().optional(),
 
         GOOGLE_CALENDAR_CLIENT_ID: Joi.string().optional(),
