@@ -48,6 +48,8 @@ interface AvailabilityRules {
   workdayEndHour: number;
   slotIntervalMinutes: number;
   durationMinutes: number;
+  minimumNoticeMinutes?: number;
+  maxFutureDays?: number;
 }
 
 @Injectable()
@@ -63,8 +65,9 @@ export class CallRequestsService {
 
   async create(dto: CreateCallRequestDto) {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
+    const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    this.validateScheduledAt(scheduledAt);
+    this.validateScheduledAt(scheduledAt, availabilityRules);
 
     const existingCallRequest = await this.callRequestModel.exists({
       scheduledAt,
@@ -110,8 +113,22 @@ export class CallRequestsService {
     }
   }
 
-  private validateScheduledAt(scheduledAt: Date): void {
-    const validationError = getBookingTimeValidationError(scheduledAt);
+  private validateScheduledAt(
+    scheduledAt: Date,
+    availabilityRules: AvailabilityRules,
+  ): void {
+    const validationError = getBookingTimeValidationError(
+      scheduledAt,
+      undefined,
+      {
+        timezone: availabilityRules.timezone,
+        workdayStartHour: availabilityRules.workdayStartHour,
+        workdayEndHour: availabilityRules.workdayEndHour,
+        slotIntervalMinutes: availabilityRules.slotIntervalMinutes,
+        minimumNoticeMinutes: availabilityRules.minimumNoticeMinutes,
+        maxFutureDays: availabilityRules.maxFutureDays,
+      },
+    );
 
     if (validationError) {
       throw new BadRequestException(validationError);
@@ -464,6 +481,8 @@ function getAvailabilityRules(
       eventType?.slotIntervalMinutes ??
       DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
     durationMinutes: eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES,
+    minimumNoticeMinutes: eventType?.minimumNoticeMinutes,
+    maxFutureDays: eventType?.maxFutureDays,
   };
 }
 

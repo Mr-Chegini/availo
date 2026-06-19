@@ -1,7 +1,11 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Model } from 'mongoose';
 import { CallRequestStatus, RabbitmqRoutingKey } from '@org/shared-types';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 import { CallRequestsService } from './call-requests.service';
 import type { CallRequestDocument } from './call-request.schema';
@@ -27,6 +31,8 @@ type TestCallRequestDocument = Pick<
 
 describe('CallRequestsService', () => {
   let callRequestModel: {
+    create: ReturnType<typeof vi.fn>;
+    exists: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
   };
@@ -45,6 +51,8 @@ describe('CallRequestsService', () => {
 
   beforeEach(() => {
     callRequestModel = {
+      create: vi.fn(),
+      exists: vi.fn(),
       findById: vi.fn(),
       find: vi.fn(),
     };
@@ -66,6 +74,55 @@ describe('CallRequestsService', () => {
       calendarProvider as unknown as CalendarProvider,
       eventTypesService as unknown as EventTypesService,
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('uses default event type minimum notice when creating call requests', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T08:00:00.000Z'));
+    eventTypesService.findDefaultActiveEventType.mockResolvedValue(
+      mockEventTypeRules({
+        minimumNoticeMinutes: 120,
+      }),
+    );
+
+    await expect(
+      service.create({
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.create({
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      }),
+    ).rejects.toThrow('Bookings require at least 120 minutes notice');
+    expect(callRequestModel.exists).not.toHaveBeenCalled();
+  });
+
+  it('uses default event type max future days when creating call requests', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T08:00:00.000Z'));
+    eventTypesService.findDefaultActiveEventType.mockResolvedValue(
+      mockEventTypeRules({
+        maxFutureDays: 30,
+      }),
+    );
+
+    await expect(
+      service.create({
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-02-15T09:00:00.000Z',
+      }),
+    ).rejects.toThrow('Bookings cannot be more than 30 days in advance');
+    expect(callRequestModel.exists).not.toHaveBeenCalled();
   });
 
   it('marks local reservations and external calendar busy slots as unavailable', async () => {
@@ -317,4 +374,25 @@ function mockCallRequest(status: CallRequestStatus): TestCallRequestDocument {
   callRequest.save.mockResolvedValue(callRequest);
 
   return callRequest;
+}
+
+function mockEventTypeRules(
+  overrides: Partial<{
+    durationMinutes: number;
+    availabilityTimezone: string;
+    workdayStartHour: number;
+    workdayEndHour: number;
+    slotIntervalMinutes: number;
+    minimumNoticeMinutes: number;
+    maxFutureDays: number;
+  }> = {},
+) {
+  return {
+    durationMinutes: 30,
+    availabilityTimezone: 'UTC',
+    workdayStartHour: 8,
+    workdayEndHour: 18,
+    slotIntervalMinutes: 30,
+    ...overrides,
+  };
 }
