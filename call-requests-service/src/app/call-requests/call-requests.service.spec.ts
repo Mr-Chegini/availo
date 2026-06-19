@@ -135,6 +135,43 @@ describe('CallRequestsService', () => {
     ]);
   });
 
+  it('uses default event type availability rules when building slots', async () => {
+    eventTypesService.findDefaultActiveEventType.mockResolvedValue({
+      durationMinutes: 30,
+      availabilityTimezone: 'UTC',
+      workdayStartHour: 9,
+      workdayEndHour: 11,
+      slotIntervalMinutes: 60,
+    });
+    mockAvailabilityCallRequests([]);
+
+    const availability = await service.getAvailability('2030-01-01');
+
+    expect(callRequestModel.find).toHaveBeenCalledWith({
+      scheduledAt: {
+        $gte: new Date('2030-01-01T09:00:00.000Z'),
+        $lt: new Date('2030-01-01T11:00:00.000Z'),
+      },
+      status: {
+        $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+      },
+    });
+    expect(calendarProvider.getBusySlots).toHaveBeenCalledWith({
+      from: '2030-01-01T09:00:00.000Z',
+      to: '2030-01-01T11:00:00.000Z',
+    });
+    expect(availability).toEqual([
+      {
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+        available: true,
+      },
+      {
+        scheduledAt: '2030-01-01T10:00:00.000Z',
+        available: true,
+      },
+    ]);
+  });
+
   it('approves requested calls and publishes an approval event', async () => {
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
     mockFindById(callRequest);

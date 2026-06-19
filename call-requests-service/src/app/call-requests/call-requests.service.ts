@@ -23,9 +23,14 @@ import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 import {
+  DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+  DEFAULT_EVENT_TYPE_TIMEZONE,
+  DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+  DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+  type EventTypeDocument,
+} from '../hosts/event-type.schema';
+import {
   getBookingTimeValidationError,
-  getWorkingDayBounds,
-  ISTANBUL_TIME_ZONE,
   isWeekend,
   SLOT_INTERVAL_MINUTES,
 } from './call-request-booking-rules';
@@ -36,6 +41,14 @@ import {
   type CalendarProvider,
 } from '../calendar/calendar-provider';
 import { EventTypesService } from '../hosts/event-types.service';
+
+interface AvailabilityRules {
+  timezone: string;
+  workdayStartHour: number;
+  workdayEndHour: number;
+  slotIntervalMinutes: number;
+  durationMinutes: number;
+}
 
 @Injectable()
 export class CallRequestsService {
@@ -125,19 +138,20 @@ export class CallRequestsService {
   }
 
   async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
+    const availabilityRules = await this.getDefaultAvailabilityRules();
     const day = DateTime.fromISO(date, {
-      zone: ISTANBUL_TIME_ZONE,
+      zone: availabilityRules.timezone,
     });
 
     if (!day.isValid) {
       throw new BadRequestException('date must be a valid ISO date');
     }
 
-    const nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE);
+    const nowInTimezone = DateTime.now().setZone(availabilityRules.timezone);
 
     if (
-      day.hasSame(nowInIstanbul, 'day') ||
-      day < nowInIstanbul.startOf('day')
+      day.hasSame(nowInTimezone, 'day') ||
+      day < nowInTimezone.startOf('day')
     ) {
       throw new BadRequestException(
         'Availability is only available for future dates',
@@ -148,8 +162,10 @@ export class CallRequestsService {
       return [];
     }
 
-    const eventDurationMinutes = await this.getDefaultEventDurationMinutes();
-    const { startOfWorkingDay, endOfWorkingDay } = getWorkingDayBounds(day);
+    const { startOfWorkingDay, endOfWorkingDay } = this.getWorkingDayBounds(
+      day,
+      availabilityRules,
+    );
 
     const existingCallRequests = await this.callRequestModel
       .find({
@@ -177,7 +193,7 @@ export class CallRequestsService {
       const scheduledAt = currentSlot.toUTC().toJSDate().toISOString();
       const slotStartsAt = currentSlot.toUTC();
       const slotEndsAt = slotStartsAt.plus({
-        minutes: eventDurationMinutes,
+        minutes: availabilityRules.durationMinutes,
       });
 
       slots.push({
@@ -187,10 +203,13 @@ export class CallRequestsService {
           slotEndsAt,
           localReservations: existingCallRequests,
           externalBusySlots,
+          reservationDurationMinutes: availabilityRules.durationMinutes,
         }),
       });
 
-      currentSlot = currentSlot.plus({ minutes: SLOT_INTERVAL_MINUTES });
+      currentSlot = currentSlot.plus({
+        minutes: availabilityRules.slotIntervalMinutes,
+      });
     }
 
     return slots;
@@ -218,14 +237,14 @@ export class CallRequestsService {
 
     callRequest.status = CallRequestStatus.SCHEDULED;
     await callRequest.save();
-    const eventDurationMinutes = await this.getDefaultEventDurationMinutes();
+    const availabilityRules = await this.getDefaultAvailabilityRules();
 
     await this.calendarProvider.createEvent({
       title: `Call with ${callRequest.email}`,
       startsAt: callRequest.scheduledAt.toISOString(),
       endsAt: this.getCallEndsAt(
         callRequest.scheduledAt,
-        eventDurationMinutes,
+        availabilityRules.durationMinutes,
       ).toISOString(),
       attendeeEmail: callRequest.email,
       attendeePhoneNumber: callRequest.phoneNumber,
@@ -349,10 +368,33 @@ export class CallRequestsService {
     };
   }
 
-  private async getDefaultEventDurationMinutes(): Promise<number> {
+  private async getDefaultAvailabilityRules(): Promise<AvailabilityRules> {
     const eventType = await this.eventTypesService.findDefaultActiveEventType();
 
-    return eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES;
+    return getAvailabilityRules(eventType);
+  }
+
+  private getWorkingDayBounds(
+    day: DateTime,
+    availabilityRules: AvailabilityRules,
+  ): {
+    startOfWorkingDay: DateTime;
+    endOfWorkingDay: DateTime;
+  } {
+    return {
+      startOfWorkingDay: day.set({
+        hour: availabilityRules.workdayStartHour,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }),
+      endOfWorkingDay: day.set({
+        hour: availabilityRules.workdayEndHour,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }),
+    };
   }
 
   private hasAvailabilityConflict(input: {
@@ -360,10 +402,13 @@ export class CallRequestsService {
     slotEndsAt: DateTime;
     localReservations: Array<{ scheduledAt: Date }>;
     externalBusySlots: Array<{ startsAt: string; endsAt: string }>;
+    reservationDurationMinutes: number;
   }): boolean {
     const localConflict = input.localReservations.some((callRequest) => {
       const startsAt = DateTime.fromJSDate(callRequest.scheduledAt);
-      const endsAt = startsAt.plus({ minutes: SLOT_INTERVAL_MINUTES });
+      const endsAt = startsAt.plus({
+        minutes: input.reservationDurationMinutes,
+      });
 
       return rangesOverlap(
         input.slotStartsAt,
@@ -404,6 +449,22 @@ function rangesOverlap(
   secondEndsAt: DateTime,
 ): boolean {
   return firstStartsAt < secondEndsAt && secondStartsAt < firstEndsAt;
+}
+
+function getAvailabilityRules(
+  eventType: EventTypeDocument | null,
+): AvailabilityRules {
+  return {
+    timezone: eventType?.availabilityTimezone ?? DEFAULT_EVENT_TYPE_TIMEZONE,
+    workdayStartHour:
+      eventType?.workdayStartHour ?? DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+    workdayEndHour:
+      eventType?.workdayEndHour ?? DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+    slotIntervalMinutes:
+      eventType?.slotIntervalMinutes ??
+      DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+    durationMinutes: eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES,
+  };
 }
 
 function isDuplicateKeyError(error: unknown): boolean {
