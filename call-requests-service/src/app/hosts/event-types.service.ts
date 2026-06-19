@@ -37,9 +37,27 @@ export class EventTypesService {
   async findDefaultActiveEventType(): Promise<EventTypeDocument | null> {
     const host = await this.hostAccountsService.findDefaultOrCreate();
 
+    return this.findOldestActiveByHostId(host._id);
+  }
+
+  async findActiveByHostId(
+    hostId: Types.ObjectId,
+  ): Promise<EventTypeDocument[]> {
+    return this.eventTypeModel
+      .find({
+        hostId,
+        isActive: true,
+      })
+      .sort({ createdAt: 1 })
+      .exec();
+  }
+
+  private async findOldestActiveByHostId(
+    hostId: Types.ObjectId,
+  ): Promise<EventTypeDocument | null> {
     return this.eventTypeModel
       .findOne({
-        hostId: host._id,
+        hostId,
         isActive: true,
       })
       .sort({ createdAt: 1 })
