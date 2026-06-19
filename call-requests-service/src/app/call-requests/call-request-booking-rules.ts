@@ -5,36 +5,75 @@ export const WORKDAY_START_HOUR = 10;
 export const WORKDAY_END_HOUR = 18;
 export const SLOT_INTERVAL_MINUTES = 30;
 
+export interface BookingTimeValidationRules {
+  timezone?: string;
+  workdayStartHour?: number;
+  workdayEndHour?: number;
+  slotIntervalMinutes?: number;
+  minimumNoticeMinutes?: number;
+  maxFutureDays?: number;
+}
+
 export function getBookingTimeValidationError(
   scheduledAt: Date,
   nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE),
+  rules: BookingTimeValidationRules = {},
 ): string | null {
-  const scheduledInIstanbul =
-    DateTime.fromJSDate(scheduledAt).setZone(ISTANBUL_TIME_ZONE);
+  const timezone = rules.timezone ?? ISTANBUL_TIME_ZONE;
+  const workdayStartHour = rules.workdayStartHour ?? WORKDAY_START_HOUR;
+  const workdayEndHour = rules.workdayEndHour ?? WORKDAY_END_HOUR;
+  const slotIntervalMinutes =
+    rules.slotIntervalMinutes ?? SLOT_INTERVAL_MINUTES;
+  const scheduledInTimezone =
+    DateTime.fromJSDate(scheduledAt).setZone(timezone);
+  const nowInTimezone = nowInIstanbul.setZone(timezone);
 
-  if (scheduledInIstanbul <= nowInIstanbul) {
+  if (scheduledInTimezone <= nowInTimezone) {
     return 'Call must be scheduled for a future date';
   }
 
-  if (scheduledInIstanbul.hasSame(nowInIstanbul, 'day')) {
-    return 'Same-day bookings are not allowed';
-  }
-
-  if (isWeekend(scheduledInIstanbul)) {
-    return 'Calls can only be booked Monday to Friday';
-  }
-
-  if (!isInsideWorkingHours(scheduledInIstanbul)) {
-    return 'Calls can only be booked between 10:00 and 18:00 Istanbul time';
-  }
-
-  if (!isSlotBoundary(scheduledInIstanbul)) {
-    return 'Calls must start on a 30-minute slot';
+  if (
+    rules.minimumNoticeMinutes !== undefined &&
+    scheduledInTimezone <
+      nowInTimezone.plus({ minutes: rules.minimumNoticeMinutes })
+  ) {
+    return `Bookings require at least ${rules.minimumNoticeMinutes} minutes notice`;
   }
 
   if (
-    scheduledInIstanbul.second !== 0 ||
-    scheduledInIstanbul.millisecond !== 0
+    rules.maxFutureDays !== undefined &&
+    scheduledInTimezone > nowInTimezone.plus({ days: rules.maxFutureDays })
+  ) {
+    return `Bookings cannot be more than ${rules.maxFutureDays} days in advance`;
+  }
+
+  if (
+    rules.minimumNoticeMinutes === undefined &&
+    scheduledInTimezone.hasSame(nowInTimezone, 'day')
+  ) {
+    return 'Same-day bookings are not allowed';
+  }
+
+  if (isWeekend(scheduledInTimezone)) {
+    return 'Calls can only be booked Monday to Friday';
+  }
+
+  if (
+    !isInsideWorkingHours(scheduledInTimezone, workdayStartHour, workdayEndHour)
+  ) {
+    const timezoneLabel =
+      timezone === ISTANBUL_TIME_ZONE ? 'Istanbul' : timezone;
+
+    return `Calls can only be booked between ${workdayStartHour}:00 and ${workdayEndHour}:00 ${timezoneLabel} time`;
+  }
+
+  if (!isSlotBoundary(scheduledInTimezone, slotIntervalMinutes)) {
+    return `Calls must start on a ${slotIntervalMinutes}-minute slot`;
+  }
+
+  if (
+    scheduledInTimezone.second !== 0 ||
+    scheduledInTimezone.millisecond !== 0
   ) {
     return 'Call time must not include seconds or milliseconds';
   }
@@ -66,17 +105,23 @@ export function isWeekend(day: DateTime): boolean {
   return day.weekday === 6 || day.weekday === 7;
 }
 
-function isInsideWorkingHours(day: DateTime): boolean {
+function isInsideWorkingHours(
+  day: DateTime,
+  workdayStartHour = WORKDAY_START_HOUR,
+  workdayEndHour = WORKDAY_END_HOUR,
+): boolean {
   const hour = day.hour;
   const minute = day.minute;
 
   return (
-    hour >= WORKDAY_START_HOUR &&
-    (hour < WORKDAY_END_HOUR ||
-      (hour === WORKDAY_END_HOUR && minute === 0))
+    hour >= workdayStartHour &&
+    (hour < workdayEndHour || (hour === workdayEndHour && minute === 0))
   );
 }
 
-function isSlotBoundary(day: DateTime): boolean {
-  return day.minute === 0 || day.minute === SLOT_INTERVAL_MINUTES;
+function isSlotBoundary(
+  day: DateTime,
+  slotIntervalMinutes = SLOT_INTERVAL_MINUTES,
+): boolean {
+  return day.minute % slotIntervalMinutes === 0;
 }

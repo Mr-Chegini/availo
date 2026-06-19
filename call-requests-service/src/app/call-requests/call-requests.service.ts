@@ -23,9 +23,14 @@ import { CallRequest, CallRequestDocument } from './call-request.schema';
 import { DateTime } from 'luxon';
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 import {
+  DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+  DEFAULT_EVENT_TYPE_TIMEZONE,
+  DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+  DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+  type EventTypeDocument,
+} from '../hosts/event-type.schema';
+import {
   getBookingTimeValidationError,
-  getWorkingDayBounds,
-  ISTANBUL_TIME_ZONE,
   isWeekend,
   SLOT_INTERVAL_MINUTES,
 } from './call-request-booking-rules';
@@ -35,6 +40,17 @@ import {
   CALENDAR_PROVIDER,
   type CalendarProvider,
 } from '../calendar/calendar-provider';
+import { EventTypesService } from '../hosts/event-types.service';
+
+interface AvailabilityRules {
+  timezone: string;
+  workdayStartHour: number;
+  workdayEndHour: number;
+  slotIntervalMinutes: number;
+  durationMinutes: number;
+  minimumNoticeMinutes?: number;
+  maxFutureDays?: number;
+}
 
 @Injectable()
 export class CallRequestsService {
@@ -44,12 +60,14 @@ export class CallRequestsService {
     private readonly rabbitmqPublisherService: RabbitmqPublisherService,
     @Inject(CALENDAR_PROVIDER)
     private readonly calendarProvider: CalendarProvider,
+    private readonly eventTypesService: EventTypesService,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
+    const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    this.validateScheduledAt(scheduledAt);
+    this.validateScheduledAt(scheduledAt, availabilityRules);
 
     const existingCallRequest = await this.callRequestModel.exists({
       scheduledAt,
@@ -95,8 +113,22 @@ export class CallRequestsService {
     }
   }
 
-  private validateScheduledAt(scheduledAt: Date): void {
-    const validationError = getBookingTimeValidationError(scheduledAt);
+  private validateScheduledAt(
+    scheduledAt: Date,
+    availabilityRules: AvailabilityRules,
+  ): void {
+    const validationError = getBookingTimeValidationError(
+      scheduledAt,
+      undefined,
+      {
+        timezone: availabilityRules.timezone,
+        workdayStartHour: availabilityRules.workdayStartHour,
+        workdayEndHour: availabilityRules.workdayEndHour,
+        slotIntervalMinutes: availabilityRules.slotIntervalMinutes,
+        minimumNoticeMinutes: availabilityRules.minimumNoticeMinutes,
+        maxFutureDays: availabilityRules.maxFutureDays,
+      },
+    );
 
     if (validationError) {
       throw new BadRequestException(validationError);
@@ -123,19 +155,20 @@ export class CallRequestsService {
   }
 
   async getAvailability(date: string): Promise<AvailabilitySlotDto[]> {
+    const availabilityRules = await this.getDefaultAvailabilityRules();
     const day = DateTime.fromISO(date, {
-      zone: ISTANBUL_TIME_ZONE,
+      zone: availabilityRules.timezone,
     });
 
     if (!day.isValid) {
       throw new BadRequestException('date must be a valid ISO date');
     }
 
-    const nowInIstanbul = DateTime.now().setZone(ISTANBUL_TIME_ZONE);
+    const nowInTimezone = DateTime.now().setZone(availabilityRules.timezone);
 
     if (
-      day.hasSame(nowInIstanbul, 'day') ||
-      day < nowInIstanbul.startOf('day')
+      day.hasSame(nowInTimezone, 'day') ||
+      day < nowInTimezone.startOf('day')
     ) {
       throw new BadRequestException(
         'Availability is only available for future dates',
@@ -146,7 +179,10 @@ export class CallRequestsService {
       return [];
     }
 
-    const { startOfWorkingDay, endOfWorkingDay } = getWorkingDayBounds(day);
+    const { startOfWorkingDay, endOfWorkingDay } = this.getWorkingDayBounds(
+      day,
+      availabilityRules,
+    );
 
     const existingCallRequests = await this.callRequestModel
       .find({
@@ -161,20 +197,10 @@ export class CallRequestsService {
       .select('scheduledAt')
       .lean();
 
-    const reservedTimes = new Set(
-      existingCallRequests.map((callRequest) =>
-        callRequest.scheduledAt.toISOString(),
-      ),
-    );
-
     const externalBusySlots = await this.calendarProvider.getBusySlots({
       from: startOfWorkingDay.toUTC().toISO() ?? '',
       to: endOfWorkingDay.toUTC().toISO() ?? '',
     });
-
-    for (const busySlot of externalBusySlots) {
-      reservedTimes.add(busySlot.startsAt);
-    }
 
     const slots: AvailabilitySlotDto[] = [];
 
@@ -182,13 +208,25 @@ export class CallRequestsService {
 
     while (currentSlot < endOfWorkingDay) {
       const scheduledAt = currentSlot.toUTC().toJSDate().toISOString();
+      const slotStartsAt = currentSlot.toUTC();
+      const slotEndsAt = slotStartsAt.plus({
+        minutes: availabilityRules.durationMinutes,
+      });
 
       slots.push({
         scheduledAt,
-        available: !reservedTimes.has(scheduledAt),
+        available: !this.hasAvailabilityConflict({
+          slotStartsAt,
+          slotEndsAt,
+          localReservations: existingCallRequests,
+          externalBusySlots,
+          reservationDurationMinutes: availabilityRules.durationMinutes,
+        }),
       });
 
-      currentSlot = currentSlot.plus({ minutes: SLOT_INTERVAL_MINUTES });
+      currentSlot = currentSlot.plus({
+        minutes: availabilityRules.slotIntervalMinutes,
+      });
     }
 
     return slots;
@@ -216,11 +254,15 @@ export class CallRequestsService {
 
     callRequest.status = CallRequestStatus.SCHEDULED;
     await callRequest.save();
+    const availabilityRules = await this.getDefaultAvailabilityRules();
 
     await this.calendarProvider.createEvent({
       title: `Call with ${callRequest.email}`,
       startsAt: callRequest.scheduledAt.toISOString(),
-      endsAt: this.getCallEndsAt(callRequest.scheduledAt).toISOString(),
+      endsAt: this.getCallEndsAt(
+        callRequest.scheduledAt,
+        availabilityRules.durationMinutes,
+      ).toISOString(),
       attendeeEmail: callRequest.email,
       attendeePhoneNumber: callRequest.phoneNumber,
     });
@@ -343,11 +385,105 @@ export class CallRequestsService {
     };
   }
 
-  private getCallEndsAt(startsAt: Date): Date {
+  private async getDefaultAvailabilityRules(): Promise<AvailabilityRules> {
+    const eventType = await this.eventTypesService.findDefaultActiveEventType();
+
+    return getAvailabilityRules(eventType);
+  }
+
+  private getWorkingDayBounds(
+    day: DateTime,
+    availabilityRules: AvailabilityRules,
+  ): {
+    startOfWorkingDay: DateTime;
+    endOfWorkingDay: DateTime;
+  } {
+    return {
+      startOfWorkingDay: day.set({
+        hour: availabilityRules.workdayStartHour,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }),
+      endOfWorkingDay: day.set({
+        hour: availabilityRules.workdayEndHour,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      }),
+    };
+  }
+
+  private hasAvailabilityConflict(input: {
+    slotStartsAt: DateTime;
+    slotEndsAt: DateTime;
+    localReservations: Array<{ scheduledAt: Date }>;
+    externalBusySlots: Array<{ startsAt: string; endsAt: string }>;
+    reservationDurationMinutes: number;
+  }): boolean {
+    const localConflict = input.localReservations.some((callRequest) => {
+      const startsAt = DateTime.fromJSDate(callRequest.scheduledAt);
+      const endsAt = startsAt.plus({
+        minutes: input.reservationDurationMinutes,
+      });
+
+      return rangesOverlap(
+        input.slotStartsAt,
+        input.slotEndsAt,
+        startsAt,
+        endsAt,
+      );
+    });
+
+    if (localConflict) {
+      return true;
+    }
+
+    return input.externalBusySlots.some((busySlot) => {
+      const startsAt = DateTime.fromISO(busySlot.startsAt);
+      const endsAt = DateTime.fromISO(busySlot.endsAt);
+
+      return rangesOverlap(
+        input.slotStartsAt,
+        input.slotEndsAt,
+        startsAt,
+        endsAt,
+      );
+    });
+  }
+
+  private getCallEndsAt(startsAt: Date, durationMinutes: number): Date {
     return DateTime.fromJSDate(startsAt)
-      .plus({ minutes: SLOT_INTERVAL_MINUTES })
+      .plus({ minutes: durationMinutes })
       .toJSDate();
   }
+}
+
+function rangesOverlap(
+  firstStartsAt: DateTime,
+  firstEndsAt: DateTime,
+  secondStartsAt: DateTime,
+  secondEndsAt: DateTime,
+): boolean {
+  return firstStartsAt < secondEndsAt && secondStartsAt < firstEndsAt;
+}
+
+function getAvailabilityRules(
+  eventType: EventTypeDocument | null,
+): AvailabilityRules {
+  return {
+    timezone: eventType?.availabilityTimezone ?? DEFAULT_EVENT_TYPE_TIMEZONE,
+    workdayStartHour:
+      eventType?.workdayStartHour ?? DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+    workdayEndHour:
+      eventType?.workdayEndHour ?? DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+    slotIntervalMinutes:
+      eventType?.slotIntervalMinutes ??
+      DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+    durationMinutes: eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES,
+    minimumNoticeMinutes: eventType?.minimumNoticeMinutes,
+    maxFutureDays: eventType?.maxFutureDays,
+  };
 }
 
 function isDuplicateKeyError(error: unknown): boolean {

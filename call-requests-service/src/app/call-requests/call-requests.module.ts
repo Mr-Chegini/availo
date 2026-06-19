@@ -5,6 +5,8 @@ import { CallRequestsController } from './call-requests.controller';
 import { CallRequestsService } from './call-requests.service';
 import { MessagingModule } from '../messaging/messaging.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { HostsModule } from '../hosts/hosts.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { CalendarModule } from '../calendar/calendar.module';
     ]),
     MessagingModule,
     CalendarModule,
+    HostsModule,
+    AuthModule,
   ],
   controllers: [CallRequestsController],
   providers: [CallRequestsService],
