@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DefaultHostBootstrapService } from './default-host-bootstrap.service';
+import { EventType, EventTypeSchema } from './event-type.schema';
 import { HostAccount, HostAccountSchema } from './host-account.schema';
 import { HostAccountsService } from './host-accounts.service';
 
@@ -10,6 +11,10 @@ import { HostAccountsService } from './host-accounts.service';
       {
         name: HostAccount.name,
         schema: HostAccountSchema,
+      },
+      {
+        name: EventType.name,
+        schema: EventTypeSchema,
       },
     ]),
   ],
