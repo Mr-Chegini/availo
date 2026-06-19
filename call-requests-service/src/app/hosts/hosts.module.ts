@@ -5,6 +5,8 @@ import { EventType, EventTypeSchema } from './event-type.schema';
 import { EventTypesService } from './event-types.service';
 import { HostAccount, HostAccountSchema } from './host-account.schema';
 import { HostAccountsService } from './host-accounts.service';
+import { PublicBookingPagesController } from './public-booking-pages.controller';
+import { PublicBookingPagesService } from './public-booking-pages.service';
 
 @Module({
   imports: [
@@ -22,8 +24,10 @@ import { HostAccountsService } from './host-accounts.service';
   providers: [
     HostAccountsService,
     EventTypesService,
+    PublicBookingPagesService,
     DefaultHostBootstrapService,
   ],
+  controllers: [PublicBookingPagesController],
   exports: [HostAccountsService, EventTypesService],
 })
 export class HostsModule {}

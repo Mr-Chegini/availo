@@ -76,6 +76,16 @@ export class HostAccountsService {
 
     return host;
   }
+
+  async getBySlug(slug: string): Promise<HostAccountDocument> {
+    const host = await this.findBySlug(slug);
+
+    if (!host) {
+      throw new NotFoundException('Host account was not found');
+    }
+
+    return host;
+  }
 }
 
 function isDuplicateKeyError(error: unknown): boolean {

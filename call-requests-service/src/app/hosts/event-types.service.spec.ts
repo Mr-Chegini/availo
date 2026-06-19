@@ -39,6 +39,39 @@ describe('EventTypesService', () => {
     expect(query.sort).toHaveBeenCalledWith({ createdAt: 1 });
   });
 
+  it('finds active event types for a host', async () => {
+    const eventTypes = [
+      {
+        slug: 'intro-call',
+        durationMinutes: 30,
+      },
+    ];
+    const query = {
+      sort: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(eventTypes),
+      }),
+    };
+    const eventTypeModel = {
+      find: vi.fn().mockReturnValue(query),
+    };
+    const hostAccountsService = {
+      findDefaultOrCreate: vi.fn(),
+    };
+    const service = new EventTypesService(
+      eventTypeModel as unknown as never,
+      hostAccountsService as unknown as HostAccountsService,
+    );
+
+    await expect(service.findActiveByHostId('host-1' as never)).resolves.toBe(
+      eventTypes as EventTypeDocument[],
+    );
+    expect(eventTypeModel.find).toHaveBeenCalledWith({
+      hostId: 'host-1',
+      isActive: true,
+    });
+    expect(query.sort).toHaveBeenCalledWith({ createdAt: 1 });
+  });
+
   it('returns the existing default event type for the default host', async () => {
     const eventType = {
       slug: DEFAULT_EVENT_TYPE_SLUG,
