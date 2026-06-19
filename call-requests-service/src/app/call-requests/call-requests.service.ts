@@ -217,6 +217,14 @@ export class CallRequestsService {
     callRequest.status = CallRequestStatus.SCHEDULED;
     await callRequest.save();
 
+    await this.calendarProvider.createEvent({
+      title: `Call with ${callRequest.email}`,
+      startsAt: callRequest.scheduledAt.toISOString(),
+      endsAt: this.getCallEndsAt(callRequest.scheduledAt).toISOString(),
+      attendeeEmail: callRequest.email,
+      attendeePhoneNumber: callRequest.phoneNumber,
+    });
+
     const event: CallApprovedEvent = {
       callRequestId: callRequest.id,
       email: callRequest.email,
@@ -333,6 +341,12 @@ export class CallRequestsService {
       createdAt: callRequest.createdAt.toISOString(),
       updatedAt: callRequest.updatedAt.toISOString(),
     };
+  }
+
+  private getCallEndsAt(startsAt: Date): Date {
+    return DateTime.fromJSDate(startsAt)
+      .plus({ minutes: SLOT_INTERVAL_MINUTES })
+      .toJSDate();
   }
 }
 

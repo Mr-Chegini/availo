@@ -104,6 +104,13 @@ describe('CallRequestsService', () => {
 
     expect(callRequest.status).toBe(CallRequestStatus.SCHEDULED);
     expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(calendarProvider.createEvent).toHaveBeenCalledWith({
+      title: 'Call with user@example.com',
+      startsAt: '2026-05-15T07:00:00.000Z',
+      endsAt: '2026-05-15T07:30:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+    });
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_APPROVED,
       {

@@ -119,7 +119,64 @@ describe('GoogleCalendarProvider', () => {
     expect(axios.post).not.toHaveBeenCalled();
   });
 
-  it('accepts event creation while Google event creation is not implemented yet', async () => {
+  it('creates a Google Calendar event', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        id: 'google-event-1',
+      },
+    });
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+    );
+
+    await expect(
+      provider.createEvent({
+        title: 'Call with user@example.com',
+        startsAt: '2026-05-15T07:00:00.000Z',
+        endsAt: '2026-05-15T07:30:00.000Z',
+        attendeeEmail: 'user@example.com',
+        attendeePhoneNumber: '+90 555 111 22 33',
+      }),
+    ).resolves.toEqual({
+      providerEventId: 'google-event-1',
+    });
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      {
+        summary: 'Call with user@example.com',
+        start: {
+          dateTime: '2026-05-15T07:00:00.000Z',
+        },
+        end: {
+          dateTime: '2026-05-15T07:30:00.000Z',
+        },
+        attendees: [
+          {
+            email: 'user@example.com',
+          },
+        ],
+        description: 'Phone number: +90 555 111 22 33',
+      },
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+  });
+
+  it('skips event creation when no active Google account is connected', async () => {
     const provider = new GoogleCalendarProvider(
       {
         findActiveByOwner: vi.fn().mockResolvedValue([]),
@@ -138,5 +195,6 @@ describe('GoogleCalendarProvider', () => {
         attendeePhoneNumber: '+90 555 111 22 33',
       }),
     ).resolves.toEqual({});
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });

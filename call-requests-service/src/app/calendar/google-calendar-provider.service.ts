@@ -13,6 +13,8 @@ import { CalendarTokenProtector } from './calendar-token-protector.service';
 
 const DEFAULT_OWNER_ID = 'default-admin';
 const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
+const GOOGLE_CALENDAR_API_BASE_URL =
+  'https://www.googleapis.com/calendar/v3/calendars';
 
 interface GoogleCalendarConnection {
   accessToken: string;
@@ -29,6 +31,10 @@ interface GoogleFreeBusyResponse {
       }>;
     }
   >;
+}
+
+interface GoogleCreateEventResponse {
+  id?: string;
 }
 
 @Injectable()
@@ -75,11 +81,43 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   async createEvent(
-    _input: CreateCalendarEventInput,
+    input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult> {
-    await this.getConnectionForDefaultOwner();
+    const connection = await this.getConnectionForDefaultOwner();
 
-    return {};
+    if (!connection) {
+      return {};
+    }
+
+    const response = await axios.post<GoogleCreateEventResponse>(
+      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+        connection.primaryCalendarId,
+      )}/events`,
+      {
+        summary: input.title,
+        start: {
+          dateTime: input.startsAt,
+        },
+        end: {
+          dateTime: input.endsAt,
+        },
+        attendees: [
+          {
+            email: input.attendeeEmail,
+          },
+        ],
+        description: `Phone number: ${input.attendeePhoneNumber}`,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+        },
+      },
+    );
+
+    return {
+      providerEventId: response.data.id,
+    };
   }
 
   async cancelEvent(_input: CancelCalendarEventInput): Promise<void> {
