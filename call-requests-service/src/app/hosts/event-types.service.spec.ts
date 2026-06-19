@@ -96,6 +96,11 @@ describe('EventTypesService', () => {
       title: '30 min intro call',
       durationMinutes: 30,
       isActive: true,
+      availabilityTimezone: 'Europe/Istanbul',
+      workdayStartHour: 10,
+      workdayEndHour: 18,
+      slotIntervalMinutes: 30,
+      minimumNoticeMinutes: 0,
     });
   });
 

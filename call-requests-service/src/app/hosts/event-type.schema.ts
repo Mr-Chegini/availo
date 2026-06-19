@@ -4,6 +4,12 @@ import { HostAccount } from './host-account.schema';
 
 export type EventTypeDocument = HydratedDocument<EventType>;
 
+export const DEFAULT_EVENT_TYPE_TIMEZONE = 'Europe/Istanbul';
+export const DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR = 10;
+export const DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR = 18;
+export const DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES = 30;
+export const DEFAULT_EVENT_TYPE_MINIMUM_NOTICE_MINUTES = 0;
+
 @Schema({
   timestamps: true,
   collection: 'event_types',
@@ -23,6 +29,46 @@ export class EventType {
 
   @Prop({ required: true, default: true })
   isActive!: boolean;
+
+  @Prop({
+    required: true,
+    trim: true,
+    default: DEFAULT_EVENT_TYPE_TIMEZONE,
+  })
+  availabilityTimezone!: string;
+
+  @Prop({
+    required: true,
+    min: 0,
+    max: 23,
+    default: DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+  })
+  workdayStartHour!: number;
+
+  @Prop({
+    required: true,
+    min: 1,
+    max: 24,
+    default: DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+  })
+  workdayEndHour!: number;
+
+  @Prop({
+    required: true,
+    min: 1,
+    default: DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+  })
+  slotIntervalMinutes!: number;
+
+  @Prop({
+    required: true,
+    min: 0,
+    default: DEFAULT_EVENT_TYPE_MINIMUM_NOTICE_MINUTES,
+  })
+  minimumNoticeMinutes!: number;
+
+  @Prop({ min: 1 })
+  maxFutureDays?: number;
 
   createdAt!: Date;
 

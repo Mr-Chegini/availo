@@ -1,7 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { Model, Types } from 'mongoose';
-import { EventType, type EventTypeDocument } from './event-type.schema';
+import {
+  DEFAULT_EVENT_TYPE_MINIMUM_NOTICE_MINUTES,
+  DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+  DEFAULT_EVENT_TYPE_TIMEZONE,
+  DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+  DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+  EventType,
+  type EventTypeDocument,
+} from './event-type.schema';
 import { HostAccountsService } from './host-accounts.service';
 
 export const DEFAULT_EVENT_TYPE_SLUG = 'intro-call';
@@ -11,6 +19,11 @@ const DEFAULT_EVENT_TYPE_INPUT = {
   title: '30 min intro call',
   durationMinutes: 30,
   isActive: true,
+  availabilityTimezone: DEFAULT_EVENT_TYPE_TIMEZONE,
+  workdayStartHour: DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
+  workdayEndHour: DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
+  slotIntervalMinutes: DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
+  minimumNoticeMinutes: DEFAULT_EVENT_TYPE_MINIMUM_NOTICE_MINUTES,
 };
 
 @Injectable()
