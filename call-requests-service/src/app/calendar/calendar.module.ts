@@ -31,7 +31,7 @@ import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
     LocalCalendarProvider,
     {
       provide: CALENDAR_PROVIDER,
-      useExisting: LocalCalendarProvider,
+      useExisting: GoogleCalendarProvider,
     },
   ],
   controllers: [CalendarConnectionsController],
