@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import axios from 'axios';
 import type {
   CalendarBusySlot,
   CalendarProvider,
@@ -11,6 +12,24 @@ import { CalendarAccountsService } from './calendar-accounts.service';
 import { CalendarTokenProtector } from './calendar-token-protector.service';
 
 const DEFAULT_OWNER_ID = 'default-admin';
+const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
+
+interface GoogleCalendarConnection {
+  accessToken: string;
+  primaryCalendarId: string;
+}
+
+interface GoogleFreeBusyResponse {
+  calendars: Record<
+    string,
+    {
+      busy: Array<{
+        start: string;
+        end: string;
+      }>;
+    }
+  >;
+}
 
 @Injectable()
 export class GoogleCalendarProvider implements CalendarProvider {
@@ -19,25 +38,57 @@ export class GoogleCalendarProvider implements CalendarProvider {
     private readonly calendarTokenProtector: CalendarTokenProtector,
   ) {}
 
-  async getBusySlots(_input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
-    await this.getAccessTokenForDefaultOwner();
+  async getBusySlots(input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
+    const connection = await this.getConnectionForDefaultOwner();
 
-    return [];
+    if (!connection) {
+      return [];
+    }
+
+    const response = await axios.post<GoogleFreeBusyResponse>(
+      GOOGLE_FREE_BUSY_URL,
+      {
+        timeMin: input.from,
+        timeMax: input.to,
+        items: [
+          {
+            id: connection.primaryCalendarId,
+          },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+        },
+      },
+    );
+
+    return (
+      response.data.calendars[connection.primaryCalendarId]?.busy.map(
+        (busySlot) => ({
+          startsAt: busySlot.start,
+          endsAt: busySlot.end,
+          source: 'google',
+        }),
+      ) ?? []
+    );
   }
 
   async createEvent(
     _input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult> {
-    await this.getAccessTokenForDefaultOwner();
+    await this.getConnectionForDefaultOwner();
 
     return {};
   }
 
   async cancelEvent(_input: CancelCalendarEventInput): Promise<void> {
-    await this.getAccessTokenForDefaultOwner();
+    await this.getConnectionForDefaultOwner();
   }
 
-  private async getAccessTokenForDefaultOwner(): Promise<string | undefined> {
+  private async getConnectionForDefaultOwner(): Promise<
+    GoogleCalendarConnection | undefined
+  > {
     const accounts =
       await this.calendarAccountsService.findActiveByOwner(DEFAULT_OWNER_ID);
     const googleAccount = accounts.find(
@@ -48,6 +99,11 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return undefined;
     }
 
-    return this.calendarTokenProtector.restore(googleAccount.accessToken);
+    return {
+      accessToken: this.calendarTokenProtector.restore(
+        googleAccount.accessToken,
+      ),
+      primaryCalendarId: googleAccount.primaryCalendarId,
+    };
   }
 }
