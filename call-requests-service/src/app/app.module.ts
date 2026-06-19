@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import * as Joi from 'joi';
 import { CallRequestsModule } from './call-requests/call-requests.module';
+import { HostsModule } from './hosts/hosts.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CallRequestsModule } from './call-requests/call-requests.module';
     }),
 
     CallRequestsModule,
+    HostsModule,
   ],
 })
 export class AppModule {}
