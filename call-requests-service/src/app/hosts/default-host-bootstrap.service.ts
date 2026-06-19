@@ -1,11 +1,11 @@
 import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import { HostAccountsService } from './host-accounts.service';
+import { EventTypesService } from './event-types.service';
 
 @Injectable()
 export class DefaultHostBootstrapService implements OnApplicationBootstrap {
-  constructor(private readonly hostAccountsService: HostAccountsService) {}
+  constructor(private readonly eventTypesService: EventTypesService) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    await this.hostAccountsService.findDefaultOrCreate();
+    await this.eventTypesService.findDefaultOrCreate();
   }
 }

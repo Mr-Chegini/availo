@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DefaultHostBootstrapService } from './default-host-bootstrap.service';
-import type { HostAccountsService } from './host-accounts.service';
+import type { EventTypesService } from './event-types.service';
 
 describe('DefaultHostBootstrapService', () => {
-  it('resolves the default host during application bootstrap', async () => {
-    const hostAccountsService = {
-      findDefaultOrCreate: vi.fn().mockResolvedValue({ slug: 'default-admin' }),
+  it('resolves the default event type during application bootstrap', async () => {
+    const eventTypesService = {
+      findDefaultOrCreate: vi.fn().mockResolvedValue({ slug: 'intro-call' }),
     };
     const service = new DefaultHostBootstrapService(
-      hostAccountsService as unknown as HostAccountsService,
+      eventTypesService as unknown as EventTypesService,
     );
 
     await service.onApplicationBootstrap();
 
-    expect(hostAccountsService.findDefaultOrCreate).toHaveBeenCalledOnce();
+    expect(eventTypesService.findDefaultOrCreate).toHaveBeenCalledOnce();
   });
 });
