@@ -54,6 +54,36 @@ PATCH  /api/call-requests/:id/reject
 PATCH  /api/call-requests/:id/called
 PATCH  /api/call-requests/:id/cancel
 PATCH  /api/call-requests/:id/admin-note
+GET    /api/calendar-connections
+POST   /api/calendar-connections/google/start
+GET    /api/calendar-connections/google/callback
+```
+
+Admin-only endpoints require an admin API key:
+
+- `GET /api/call-requests`
+- `PATCH /api/call-requests/:id/approve`
+- `PATCH /api/call-requests/:id/reject`
+- `PATCH /api/call-requests/:id/called`
+- `PATCH /api/call-requests/:id/cancel`
+- `PATCH /api/call-requests/:id/admin-note`
+- `GET /api/calendar-connections`
+- `POST /api/calendar-connections/google/start`
+
+Public endpoints do not require an admin API key:
+
+- `POST /api/call-requests`
+- `GET /api/call-requests/availability?date=YYYY-MM-DD`
+- `GET /api/calendar-connections/google/callback`
+
+Send the admin API key with either header:
+
+```http
+x-admin-api-key: your-admin-api-key
+```
+
+```http
+Authorization: Bearer your-admin-api-key
 ```
 
 Example create request:
@@ -188,6 +218,7 @@ RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 
 ADMIN_EMAIL=amir@gmail.com
+ADMIN_API_KEY=dev-admin-key
 
 EMAIL_PROVIDER=console
 EMAIL_FROM=no-reply@example.com
@@ -199,6 +230,9 @@ SMTP_PASSWORD=your-smtp-password
 ```
 
 Real `.env` files are ignored by git; keep local secrets out of commits.
+
+`ADMIN_API_KEY` defaults to `dev-admin-key` outside production. In production,
+set a long random value; the Call Requests Service requires it at startup.
 
 ## Running with Docker Compose
 
