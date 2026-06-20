@@ -35,6 +35,7 @@ import {
   SLOT_INTERVAL_MINUTES,
 } from './call-request-booking-rules';
 import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
+import { createCancellationToken } from './call-request-tokens';
 import { normalizeCreateCallRequestInput } from './create-call-request-input';
 import {
   CALENDAR_PROVIDER,
@@ -52,6 +53,10 @@ interface AvailabilityRules {
   maxFutureDays?: number;
 }
 
+export interface CallRequestPublicBookingResponse extends CallRequestResponseDto {
+  cancellationToken: string;
+}
+
 @Injectable()
 export class CallRequestsService {
   constructor(
@@ -67,22 +72,26 @@ export class CallRequestsService {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    return this.createWithRules(
+    const callRequest = await this.createWithRules(
       { email, phoneNumber, scheduledAt },
       availabilityRules,
     );
+
+    return this.toResponse(callRequest);
   }
 
   async createForEventType(
     dto: CreateCallRequestDto,
     eventType: EventTypeDocument,
-  ) {
+  ): Promise<CallRequestPublicBookingResponse> {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
 
-    return this.createWithRules(
+    const callRequest = await this.createWithRules(
       { email, phoneNumber, scheduledAt },
       getAvailabilityRules(eventType),
     );
+
+    return this.toPublicBookingResponse(callRequest);
   }
 
   private async createWithRules(
@@ -92,7 +101,7 @@ export class CallRequestsService {
       scheduledAt: Date;
     },
     availabilityRules: AvailabilityRules,
-  ) {
+  ): Promise<CallRequestDocument> {
     const { email, phoneNumber, scheduledAt } = input;
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
@@ -126,7 +135,7 @@ export class CallRequestsService {
       event,
     );
 
-    return this.toResponse(callRequest);
+    return callRequest;
   }
 
   private normalizeCreateInput(
@@ -172,6 +181,7 @@ export class CallRequestsService {
       return await this.callRequestModel.create({
         ...dto,
         status: CallRequestStatus.REQUESTED,
+        cancellationToken: createCancellationToken(),
       });
     } catch (error) {
       if (isDuplicateKeyError(error)) {
@@ -382,6 +392,34 @@ export class CallRequestsService {
       throw new ConflictException('Only scheduled calls can be canceled');
     }
 
+    return this.cancelCallRequest(callRequest);
+  }
+
+  async cancelWithToken(
+    id: string,
+    cancellationToken: string,
+  ): Promise<CallRequestResponseDto> {
+    const callRequest = await this.callRequestModel
+      .findOne({
+        _id: id,
+        cancellationToken,
+      })
+      .exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    return this.cancelCallRequest(callRequest);
+  }
+
+  private async cancelCallRequest(
+    callRequest: CallRequestDocument,
+  ): Promise<CallRequestResponseDto> {
+    if (callRequest.status !== CallRequestStatus.SCHEDULED) {
+      throw new ConflictException('Only scheduled calls can be canceled');
+    }
+
     callRequest.status = CallRequestStatus.CANCELED;
     await callRequest.save();
 
@@ -425,6 +463,15 @@ export class CallRequestsService {
       adminNote: callRequest.adminNote,
       createdAt: callRequest.createdAt.toISOString(),
       updatedAt: callRequest.updatedAt.toISOString(),
+    };
+  }
+
+  private toPublicBookingResponse(
+    callRequest: CallRequestDocument,
+  ): CallRequestPublicBookingResponse {
+    return {
+      ...this.toResponse(callRequest),
+      cancellationToken: callRequest.cancellationToken,
     };
   }
 

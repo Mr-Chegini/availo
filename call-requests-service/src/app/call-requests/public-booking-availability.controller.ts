@@ -1,9 +1,9 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import type {
-  CallRequestResponseDto,
   CallRequestStatus,
   CreateCallRequestDto,
 } from '@org/shared-types';
+import type { CallRequestPublicBookingResponse } from './call-requests.service';
 import type { EventTypeDocument } from '../hosts/event-type.schema';
 import { EventTypesService } from '../hosts/event-types.service';
 import { HostAccountsService } from '../hosts/host-accounts.service';
@@ -15,6 +15,7 @@ interface PublicBookingConfirmationDto {
   phoneNumber: string;
   scheduledAt: string;
   status: CallRequestStatus;
+  cancellationToken: string;
   eventType: {
     slug: string;
     title: string;
@@ -66,10 +67,21 @@ export class PublicBookingAvailabilityController {
 
     return toPublicBookingConfirmation(booking, eventType);
   }
+
+  @Post('bookings/:bookingId/cancel')
+  cancelBooking(
+    @Param('bookingId') bookingId: string,
+    @Query('token') cancellationToken: string,
+  ) {
+    return this.callRequestsService.cancelWithToken(
+      bookingId,
+      cancellationToken,
+    );
+  }
 }
 
 function toPublicBookingConfirmation(
-  booking: CallRequestResponseDto,
+  booking: CallRequestPublicBookingResponse,
   eventType: EventTypeDocument,
 ): PublicBookingConfirmationDto {
   return {
@@ -78,6 +90,7 @@ function toPublicBookingConfirmation(
     phoneNumber: booking.phoneNumber,
     scheduledAt: booking.scheduledAt,
     status: booking.status,
+    cancellationToken: booking.cancellationToken,
     eventType: {
       slug: eventType.slug,
       title: eventType.title,

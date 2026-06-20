@@ -2,6 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { CallRequestStatus } from '@org/shared-types';
 import type { HydratedDocument } from 'mongoose';
 import { ACTIVE_RESERVATION_STATUSES } from './call-request-status-rules';
+import { createCancellationToken } from './call-request-tokens';
 
 export type CallRequestDocument = HydratedDocument<CallRequest>;
 
@@ -30,6 +31,9 @@ export class CallRequest {
   @Prop({ trim: true })
   adminNote?: string;
 
+  @Prop({ required: true, trim: true })
+  cancellationToken!: string;
+
   createdAt!: Date;
 
   updatedAt!: Date;
@@ -41,6 +45,14 @@ CallRequestSchema.index(
   { name: 'idx_call_requests_scheduled_at_status' },
 );
 CallRequestSchema.index(
+  { cancellationToken: 1 },
+  {
+    name: 'uniq_call_requests_cancellation_token',
+    unique: true,
+    sparse: true,
+  },
+);
+CallRequestSchema.index(
   { scheduledAt: 1 },
   {
     name: 'uniq_call_requests_active_scheduled_at',
@@ -50,3 +62,8 @@ CallRequestSchema.index(
     },
   },
 );
+CallRequestSchema.pre('validate', function ensureCancellationToken() {
+  if (!this.cancellationToken) {
+    this.cancellationToken = createCancellationToken();
+  }
+});

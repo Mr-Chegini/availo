@@ -6,15 +6,18 @@ import type { CallRequestsService } from './call-requests.service';
 import { PublicBookingAvailabilityController } from './public-booking-availability.controller';
 
 describe('PublicBookingAvailabilityController', () => {
-  it('keeps the public booking availability endpoint unauthenticated', () => {
-    const guards =
-      Reflect.getMetadata(
-        GUARDS_METADATA,
-        PublicBookingAvailabilityController.prototype.getAvailability,
-      ) ?? [];
+  it.each(['getAvailability', 'createBooking', 'cancelBooking'] as const)(
+    'keeps %s unauthenticated',
+    (methodName) => {
+      const guards =
+        Reflect.getMetadata(
+          GUARDS_METADATA,
+          PublicBookingAvailabilityController.prototype[methodName],
+        ) ?? [];
 
-    expect(guards).toEqual([]);
-  });
+      expect(guards).toEqual([]);
+    },
+  );
 
   it('looks up availability by host slug, event type slug, and date', async () => {
     const host = {
@@ -80,6 +83,7 @@ describe('PublicBookingAvailabilityController', () => {
       scheduledAt: '2030-01-01T09:00:00.000Z',
       status: 'REQUESTED',
       adminNote: 'internal note',
+      cancellationToken: 'cancel-token',
       createdAt: '2030-01-01T08:00:00.000Z',
       updatedAt: '2030-01-01T08:00:00.000Z',
     };
@@ -107,6 +111,7 @@ describe('PublicBookingAvailabilityController', () => {
       phoneNumber: '+90 555 111 22 33',
       scheduledAt: '2030-01-01T09:00:00.000Z',
       status: 'REQUESTED',
+      cancellationToken: 'cancel-token',
       eventType: {
         slug: 'intro-call',
         title: '30 min intro call',
@@ -121,6 +126,29 @@ describe('PublicBookingAvailabilityController', () => {
     expect(callRequestsService.createForEventType).toHaveBeenCalledWith(
       dto,
       eventType,
+    );
+  });
+
+  it('cancels a booking by booking id and cancellation token', async () => {
+    const response = {
+      id: 'call-1',
+      status: 'CANCELED',
+    };
+    const callRequestsService = {
+      cancelWithToken: vi.fn().mockResolvedValue(response),
+    };
+    const controller = new PublicBookingAvailabilityController(
+      {} as HostAccountsService,
+      {} as EventTypesService,
+      callRequestsService as unknown as CallRequestsService,
+    );
+
+    await expect(
+      controller.cancelBooking('call-1', 'cancel-token'),
+    ).resolves.toBe(response);
+    expect(callRequestsService.cancelWithToken).toHaveBeenCalledWith(
+      'call-1',
+      'cancel-token',
     );
   });
 });

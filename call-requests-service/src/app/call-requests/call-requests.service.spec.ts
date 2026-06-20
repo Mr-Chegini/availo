@@ -24,6 +24,7 @@ type TestCallRequestDocument = Pick<
   | 'scheduledAt'
   | 'status'
   | 'adminNote'
+  | 'cancellationToken'
   | 'createdAt'
   | 'updatedAt'
   | 'save'
@@ -34,6 +35,7 @@ describe('CallRequestsService', () => {
     create: ReturnType<typeof vi.fn>;
     exists: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    findOne: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
   };
   let rabbitmqPublisherService: {
@@ -54,6 +56,7 @@ describe('CallRequestsService', () => {
       create: vi.fn(),
       exists: vi.fn(),
       findById: vi.fn(),
+      findOne: vi.fn(),
       find: vi.fn(),
     };
     rabbitmqPublisherService = {
@@ -160,7 +163,11 @@ describe('CallRequestsService', () => {
       phoneNumber: '+90 555 111 22 33',
       scheduledAt,
       status: CallRequestStatus.REQUESTED,
+      cancellationToken: expect.any(String),
     });
+    expect(
+      callRequestModel.create.mock.calls[0][0].cancellationToken,
+    ).toHaveLength(64);
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_REQUESTED,
       expect.objectContaining({
@@ -170,6 +177,7 @@ describe('CallRequestsService', () => {
       }),
     );
     expect(response.status).toBe(CallRequestStatus.REQUESTED);
+    expect(response.cancellationToken).toBe('cancel-token');
   });
 
   it('marks local reservations and external calendar busy slots as unavailable', async () => {
@@ -391,6 +399,37 @@ describe('CallRequestsService', () => {
     expect(response.status).toBe(CallRequestStatus.CANCELED);
   });
 
+  it('cancels scheduled calls with a matching cancellation token', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+    mockFindOne(callRequest);
+
+    const response = await service.cancelWithToken('call-1', 'cancel-token');
+
+    expect(callRequestModel.findOne).toHaveBeenCalledWith({
+      _id: 'call-1',
+      cancellationToken: 'cancel-token',
+    });
+    expect(callRequest.status).toBe(CallRequestStatus.CANCELED);
+    expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
+      RabbitmqRoutingKey.CALL_CANCELED,
+      {
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        scheduledAt: '2026-05-15T07:00:00.000Z',
+      },
+    );
+    expect(response.status).toBe(CallRequestStatus.CANCELED);
+  });
+
+  it('throws when a cancellation token does not match a call request', async () => {
+    mockFindOne(null);
+
+    await expect(
+      service.cancelWithToken('call-1', 'wrong-token'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('throws when the call request does not exist', async () => {
     mockFindById(null);
 
@@ -412,6 +451,12 @@ describe('CallRequestsService', () => {
 
   function mockFindById(callRequest: TestCallRequestDocument | null): void {
     callRequestModel.findById.mockReturnValue({
+      exec: vi.fn().mockResolvedValue(callRequest),
+    });
+  }
+
+  function mockFindOne(callRequest: TestCallRequestDocument | null): void {
+    callRequestModel.findOne.mockReturnValue({
       exec: vi.fn().mockResolvedValue(callRequest),
     });
   }
@@ -438,6 +483,7 @@ function mockCallRequest(
     scheduledAt,
     status,
     adminNote: undefined,
+    cancellationToken: 'cancel-token',
     createdAt: CREATED_AT,
     updatedAt: UPDATED_AT,
     save: vi.fn(),
