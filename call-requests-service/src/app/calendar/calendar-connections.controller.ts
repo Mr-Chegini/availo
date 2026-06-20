@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
 import { CalendarConnectionsService } from './calendar-connections.service';
 
 const DEFAULT_OWNER_ID = 'default-admin';
@@ -10,11 +11,13 @@ export class CalendarConnectionsController {
   ) {}
 
   @Get()
+  @UseGuards(AdminApiKeyGuard)
   listConnections(@Query('ownerId') ownerId = DEFAULT_OWNER_ID) {
     return this.calendarConnectionsService.listConnections(ownerId);
   }
 
   @Post('google/start')
+  @UseGuards(AdminApiKeyGuard)
   startGoogleConnection(@Query('ownerId') ownerId = DEFAULT_OWNER_ID) {
     return this.calendarConnectionsService.startGoogleConnection(ownerId);
   }

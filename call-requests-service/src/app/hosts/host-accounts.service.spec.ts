@@ -60,6 +60,34 @@ describe('HostAccountsService', () => {
     expect(model.findOne).toHaveBeenCalledWith({ slug: 'admin' });
   });
 
+  it('gets a host account by slug', async () => {
+    const hostAccount = { slug: 'admin' };
+    const model = {
+      findOne: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(hostAccount),
+      }),
+    };
+    const service = new HostAccountsService(model as unknown as never);
+
+    await expect(service.getBySlug('admin')).resolves.toBe(
+      hostAccount as HostAccountDocument,
+    );
+    expect(model.findOne).toHaveBeenCalledWith({ slug: 'admin' });
+  });
+
+  it('throws when getting a missing host account by slug', async () => {
+    const model = {
+      findOne: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(null),
+      }),
+    };
+    const service = new HostAccountsService(model as unknown as never);
+
+    await expect(service.getBySlug('missing')).rejects.toThrow(
+      'Host account was not found',
+    );
+  });
+
   it('returns the existing default host account', async () => {
     const hostAccount = { slug: 'default-admin' };
     const model = {
