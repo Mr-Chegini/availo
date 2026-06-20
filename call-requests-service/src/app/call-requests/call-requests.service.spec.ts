@@ -125,6 +125,53 @@ describe('CallRequestsService', () => {
     expect(callRequestModel.exists).not.toHaveBeenCalled();
   });
 
+  it('creates call requests with selected event type rules', async () => {
+    const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
+    const callRequest = mockCallRequest(
+      CallRequestStatus.REQUESTED,
+      scheduledAt,
+    );
+    callRequestModel.exists.mockResolvedValue(null);
+    callRequestModel.create.mockResolvedValue(callRequest);
+
+    const response = await service.createForEventType(
+      {
+        email: ' USER@Example.COM ',
+        phoneNumber: ' +90 555 111 22 33 ',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+      mockEventTypeRules({
+        availabilityTimezone: 'UTC',
+        workdayStartHour: 9,
+        workdayEndHour: 17,
+        slotIntervalMinutes: 30,
+      }) as never,
+    );
+
+    expect(eventTypesService.findDefaultActiveEventType).not.toHaveBeenCalled();
+    expect(callRequestModel.exists).toHaveBeenCalledWith({
+      scheduledAt,
+      status: {
+        $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+      },
+    });
+    expect(callRequestModel.create).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt,
+      status: CallRequestStatus.REQUESTED,
+    });
+    expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
+      RabbitmqRoutingKey.CALL_REQUESTED,
+      expect.objectContaining({
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      }),
+    );
+    expect(response.status).toBe(CallRequestStatus.REQUESTED);
+  });
+
   it('marks local reservations and external calendar busy slots as unavailable', async () => {
     mockAvailabilityCallRequests([
       {
@@ -380,12 +427,15 @@ describe('CallRequestsService', () => {
   }
 });
 
-function mockCallRequest(status: CallRequestStatus): TestCallRequestDocument {
+function mockCallRequest(
+  status: CallRequestStatus,
+  scheduledAt = SCHEDULED_AT,
+): TestCallRequestDocument {
   const callRequest = {
     id: 'call-1',
     email: 'user@example.com',
     phoneNumber: '+90 555 111 22 33',
-    scheduledAt: SCHEDULED_AT,
+    scheduledAt,
     status,
     adminNote: undefined,
     createdAt: CREATED_AT,

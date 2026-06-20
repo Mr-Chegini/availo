@@ -67,6 +67,34 @@ export class CallRequestsService {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
+    return this.createWithRules(
+      { email, phoneNumber, scheduledAt },
+      availabilityRules,
+    );
+  }
+
+  async createForEventType(
+    dto: CreateCallRequestDto,
+    eventType: EventTypeDocument,
+  ) {
+    const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
+
+    return this.createWithRules(
+      { email, phoneNumber, scheduledAt },
+      getAvailabilityRules(eventType),
+    );
+  }
+
+  private async createWithRules(
+    input: {
+      email: string;
+      phoneNumber: string;
+      scheduledAt: Date;
+    },
+    availabilityRules: AvailabilityRules,
+  ) {
+    const { email, phoneNumber, scheduledAt } = input;
+
     this.validateScheduledAt(scheduledAt, availabilityRules);
 
     const existingCallRequest = await this.callRequestModel.exists({
