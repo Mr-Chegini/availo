@@ -22,6 +22,8 @@ describe('PublicBookingAvailabilityController', () => {
     };
     const eventType = {
       slug: 'intro-call',
+      title: '30 min intro call',
+      durationMinutes: 30,
     };
     const availability = [
       {
@@ -63,6 +65,8 @@ describe('PublicBookingAvailabilityController', () => {
     };
     const eventType = {
       slug: 'intro-call',
+      title: '30 min intro call',
+      durationMinutes: 30,
     };
     const dto = {
       email: 'user@example.com',
@@ -71,7 +75,13 @@ describe('PublicBookingAvailabilityController', () => {
     };
     const response = {
       id: 'call-1',
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt: '2030-01-01T09:00:00.000Z',
       status: 'REQUESTED',
+      adminNote: 'internal note',
+      createdAt: '2030-01-01T08:00:00.000Z',
+      updatedAt: '2030-01-01T08:00:00.000Z',
     };
     const hostAccountsService = {
       getBySlug: vi.fn().mockResolvedValue(host),
@@ -91,7 +101,18 @@ describe('PublicBookingAvailabilityController', () => {
 
     await expect(
       controller.createBooking('default-admin', 'intro-call', dto),
-    ).resolves.toBe(response);
+    ).resolves.toEqual({
+      bookingId: 'call-1',
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt: '2030-01-01T09:00:00.000Z',
+      status: 'REQUESTED',
+      eventType: {
+        slug: 'intro-call',
+        title: '30 min intro call',
+        durationMinutes: 30,
+      },
+    });
     expect(hostAccountsService.getBySlug).toHaveBeenCalledWith('default-admin');
     expect(eventTypesService.getActiveByHostIdAndSlug).toHaveBeenCalledWith(
       'host-1',
