@@ -23,6 +23,10 @@ interface PublicBookingConfirmationDto {
   };
 }
 
+interface PublicBookingRescheduleDto {
+  scheduledAt: string;
+}
+
 @Controller('booking-pages/:hostSlug/event-types/:eventTypeSlug/availability')
 export class PublicBookingAvailabilityController {
   constructor(
@@ -77,6 +81,29 @@ export class PublicBookingAvailabilityController {
       bookingId,
       cancellationToken,
     );
+  }
+
+  @Post('bookings/:bookingId/reschedule')
+  async rescheduleBooking(
+    @Param('hostSlug') hostSlug: string,
+    @Param('eventTypeSlug') eventTypeSlug: string,
+    @Param('bookingId') bookingId: string,
+    @Query('token') cancellationToken: string,
+    @Body() dto: PublicBookingRescheduleDto,
+  ): Promise<PublicBookingConfirmationDto> {
+    const host = await this.hostAccountsService.getBySlug(hostSlug);
+    const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
+      host._id,
+      eventTypeSlug,
+    );
+    const booking = await this.callRequestsService.rescheduleWithToken(
+      bookingId,
+      cancellationToken,
+      dto,
+      eventType,
+    );
+
+    return toPublicBookingConfirmation(booking, eventType);
   }
 }
 

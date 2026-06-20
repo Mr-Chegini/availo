@@ -430,6 +430,79 @@ describe('CallRequestsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('reschedules requested calls with a matching cancellation token', async () => {
+    const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
+    const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
+    mockFindOne(callRequest);
+    callRequestModel.exists.mockResolvedValue(null);
+
+    const response = await service.rescheduleWithToken(
+      'call-1',
+      'cancel-token',
+      {
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+      mockEventTypeRules({
+        availabilityTimezone: 'UTC',
+        workdayStartHour: 9,
+        workdayEndHour: 17,
+        slotIntervalMinutes: 30,
+      }) as never,
+    );
+
+    expect(callRequestModel.findOne).toHaveBeenCalledWith({
+      _id: 'call-1',
+      cancellationToken: 'cancel-token',
+    });
+    expect(callRequestModel.exists).toHaveBeenCalledWith({
+      scheduledAt,
+      status: {
+        $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
+      },
+      _id: {
+        $ne: 'call-1',
+      },
+    });
+    expect(callRequest.scheduledAt).toEqual(scheduledAt);
+    expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(rabbitmqPublisherService.publish).not.toHaveBeenCalled();
+    expect(response.scheduledAt).toBe('2030-01-01T09:00:00.000Z');
+    expect(response.cancellationToken).toBe('cancel-token');
+  });
+
+  it('throws when rescheduling with a token that does not match a call request', async () => {
+    mockFindOne(null);
+
+    await expect(
+      service.rescheduleWithToken(
+        'call-1',
+        'wrong-token',
+        {
+          scheduledAt: '2030-01-01T09:00:00.000Z',
+        },
+        mockEventTypeRules() as never,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws when rescheduling a non-requested call', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+    mockFindOne(callRequest);
+
+    await expect(
+      service.rescheduleWithToken(
+        'call-1',
+        'cancel-token',
+        {
+          scheduledAt: '2030-01-01T09:00:00.000Z',
+        },
+        mockEventTypeRules() as never,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(callRequestModel.exists).not.toHaveBeenCalled();
+    expect(callRequest.save).not.toHaveBeenCalled();
+  });
+
   it('throws when the call request does not exist', async () => {
     mockFindById(null);
 

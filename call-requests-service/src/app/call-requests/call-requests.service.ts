@@ -57,6 +57,10 @@ export interface CallRequestPublicBookingResponse extends CallRequestResponseDto
   cancellationToken: string;
 }
 
+export interface RescheduleCallRequestDto {
+  scheduledAt: string;
+}
+
 @Injectable()
 export class CallRequestsService {
   constructor(
@@ -106,16 +110,7 @@ export class CallRequestsService {
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
 
-    const existingCallRequest = await this.callRequestModel.exists({
-      scheduledAt,
-      status: {
-        $in: ACTIVE_RESERVATION_STATUSES,
-      },
-    });
-
-    if (existingCallRequest) {
-      throw new BadRequestException('This time slot is already reserved');
-    }
+    await this.assertSlotAvailable(scheduledAt);
 
     const callRequest = await this.createCallRequest({
       email,
@@ -169,6 +164,54 @@ export class CallRequestsService {
 
     if (validationError) {
       throw new BadRequestException(validationError);
+    }
+  }
+
+  private normalizeRescheduleInput(dto: RescheduleCallRequestDto): Date {
+    const scheduledAtRaw = dto.scheduledAt?.trim();
+
+    if (!scheduledAtRaw) {
+      throw new BadRequestException('scheduledAt is required');
+    }
+
+    const scheduledAt = new Date(scheduledAtRaw);
+
+    if (Number.isNaN(scheduledAt.getTime())) {
+      throw new BadRequestException('scheduledAt must be a valid date');
+    }
+
+    return scheduledAt;
+  }
+
+  private async assertSlotAvailable(
+    scheduledAt: Date,
+    excludeCallRequestId?: string,
+  ): Promise<void> {
+    const query: {
+      scheduledAt: Date;
+      status: {
+        $in: CallRequestStatus[];
+      };
+      _id?: {
+        $ne: string;
+      };
+    } = {
+      scheduledAt,
+      status: {
+        $in: ACTIVE_RESERVATION_STATUSES,
+      },
+    };
+
+    if (excludeCallRequestId) {
+      query._id = {
+        $ne: excludeCallRequestId,
+      };
+    }
+
+    const existingCallRequest = await this.callRequestModel.exists(query);
+
+    if (existingCallRequest) {
+      throw new BadRequestException('This time slot is already reserved');
     }
   }
 
@@ -411,6 +454,48 @@ export class CallRequestsService {
     }
 
     return this.cancelCallRequest(callRequest);
+  }
+
+  async rescheduleWithToken(
+    id: string,
+    cancellationToken: string,
+    dto: RescheduleCallRequestDto,
+    eventType: EventTypeDocument,
+  ): Promise<CallRequestPublicBookingResponse> {
+    const callRequest = await this.callRequestModel
+      .findOne({
+        _id: id,
+        cancellationToken,
+      })
+      .exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    if (callRequest.status !== CallRequestStatus.REQUESTED) {
+      throw new ConflictException('Only requested calls can be rescheduled');
+    }
+
+    const scheduledAt = this.normalizeRescheduleInput(dto);
+    const availabilityRules = getAvailabilityRules(eventType);
+
+    this.validateScheduledAt(scheduledAt, availabilityRules);
+    await this.assertSlotAvailable(scheduledAt, callRequest.id);
+
+    callRequest.scheduledAt = scheduledAt;
+
+    try {
+      await callRequest.save();
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new BadRequestException('This time slot is already reserved');
+      }
+
+      throw error;
+    }
+
+    return this.toPublicBookingResponse(callRequest);
   }
 
   private async cancelCallRequest(
