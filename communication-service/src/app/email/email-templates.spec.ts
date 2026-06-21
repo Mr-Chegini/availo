@@ -5,6 +5,7 @@ import {
   buildCallRequestedEmail,
   buildDailyDigestEmail,
 } from './email-templates';
+import type { EmailMessage } from './email-sender';
 
 describe('email templates', () => {
   it('builds a call requested email', () => {
@@ -132,6 +133,68 @@ describe('email templates', () => {
     );
   });
 
+  it('snapshots public booking requested email text and HTML output', () => {
+    const email = buildCallRequestedEmail(
+      {
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2026-05-15T07:00:00.000Z',
+        publicBooking: {
+          hostSlug: 'default-admin',
+          eventTypeSlug: 'intro-call',
+          cancellationToken: 'cancel-token',
+        },
+      },
+      'https://availo.example.com/api',
+    );
+
+    expect(snapshotEmail(email)).toMatchInlineSnapshot(`
+      {
+        "html": "<!doctype html><html><body><h1>Your call request was received</h1><p>Your call request for 2026-05-15T07:00:00.000Z was received and is waiting for admin approval.</p><ul><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token">Manage booking</a></li><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/cancel?token=cancel-token">Cancel booking</a></li><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token">Reschedule booking</a></li></ul></body></html>",
+        "subject": "Your call request was received",
+        "template": "CALL_REQUESTED",
+        "text": "Your call request for 2026-05-15T07:00:00.000Z was received and is waiting for admin approval.
+
+      Manage booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token
+      Cancel booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/cancel?token=cancel-token
+      Reschedule booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token",
+        "to": "user@example.com",
+      }
+    `);
+  });
+
+  it('snapshots public booking approved email text and HTML output', () => {
+    const email = buildCallApprovedEmail(
+      {
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2026-05-15T07:00:00.000Z',
+        publicBooking: {
+          hostSlug: 'default-admin',
+          eventTypeSlug: 'intro-call',
+          cancellationToken: 'cancel-token',
+        },
+      },
+      'https://availo.example.com/api',
+    );
+
+    expect(snapshotEmail(email)).toMatchInlineSnapshot(`
+      {
+        "html": "<!doctype html><html><body><h1>Your call request was approved</h1><p>Your call request for 2026-05-15T07:00:00.000Z was approved.</p><ul><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token">Manage booking</a></li><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/cancel?token=cancel-token">Cancel booking</a></li><li><a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token">Reschedule booking</a></li></ul></body></html>",
+        "subject": "Your call request was approved",
+        "template": "CALL_APPROVED",
+        "text": "Your call request for 2026-05-15T07:00:00.000Z was approved.
+
+      Manage booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token
+      Cancel booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/cancel?token=cancel-token
+      Reschedule booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token",
+        "to": "user@example.com",
+      }
+    `);
+  });
+
   it('builds customer and admin reminder emails', () => {
     const emails = buildCallReminderEmails(
       {
@@ -200,3 +263,15 @@ describe('email templates', () => {
     expect(email.text).toBe('No scheduled calls for today.');
   });
 });
+
+function snapshotEmail(
+  email: EmailMessage,
+): Pick<EmailMessage, 'html' | 'subject' | 'template' | 'text' | 'to'> {
+  return {
+    html: email.html,
+    subject: email.subject,
+    template: email.template,
+    text: email.text,
+    to: email.to,
+  };
+}
