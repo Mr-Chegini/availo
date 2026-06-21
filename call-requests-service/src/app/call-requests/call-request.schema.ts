@@ -37,6 +37,9 @@ export class CallRequest {
   @Prop({ trim: true })
   calendarProviderEventId?: string;
 
+  @Prop({ trim: true })
+  meetingLocation?: string;
+
   createdAt!: Date;
 
   updatedAt!: Date;

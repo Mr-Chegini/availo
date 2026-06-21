@@ -29,6 +29,7 @@ describe('PublicBookingAvailabilityController', () => {
       slug: 'intro-call',
       title: '30 min intro call',
       durationMinutes: 30,
+      meetingLocation: 'Google Meet',
     };
     const availability = [
       {
@@ -72,6 +73,7 @@ describe('PublicBookingAvailabilityController', () => {
       slug: 'intro-call',
       title: '30 min intro call',
       durationMinutes: 30,
+      meetingLocation: 'Google Meet',
     };
     const dto = {
       email: 'user@example.com',
@@ -86,6 +88,7 @@ describe('PublicBookingAvailabilityController', () => {
       status: 'REQUESTED',
       adminNote: 'internal note',
       cancellationToken: 'cancel-token',
+      meetingLocation: 'Google Meet',
       createdAt: '2030-01-01T08:00:00.000Z',
       updatedAt: '2030-01-01T08:00:00.000Z',
     };
@@ -114,10 +117,12 @@ describe('PublicBookingAvailabilityController', () => {
       scheduledAt: '2030-01-01T09:00:00.000Z',
       status: 'REQUESTED',
       cancellationToken: 'cancel-token',
+      meetingLocation: 'Google Meet',
       eventType: {
         slug: 'intro-call',
         title: '30 min intro call',
         durationMinutes: 30,
+        meetingLocation: 'Google Meet',
       },
     });
     expect(hostAccountsService.getBySlug).toHaveBeenCalledWith('default-admin');
@@ -162,6 +167,7 @@ describe('PublicBookingAvailabilityController', () => {
       slug: 'intro-call',
       title: '30 min intro call',
       durationMinutes: 30,
+      meetingLocation: 'Zoom',
     };
     const dto = {
       scheduledAt: '2030-01-01T09:30:00.000Z',
@@ -174,6 +180,7 @@ describe('PublicBookingAvailabilityController', () => {
       status: 'REQUESTED',
       adminNote: undefined,
       cancellationToken: 'cancel-token',
+      meetingLocation: 'Zoom',
       createdAt: '2030-01-01T08:00:00.000Z',
       updatedAt: '2030-01-01T08:05:00.000Z',
     };
@@ -207,10 +214,12 @@ describe('PublicBookingAvailabilityController', () => {
       scheduledAt: '2030-01-01T09:30:00.000Z',
       status: 'REQUESTED',
       cancellationToken: 'cancel-token',
+      meetingLocation: 'Zoom',
       eventType: {
         slug: 'intro-call',
         title: '30 min intro call',
         durationMinutes: 30,
+        meetingLocation: 'Zoom',
       },
     });
     expect(hostAccountsService.getBySlug).toHaveBeenCalledWith('default-admin');

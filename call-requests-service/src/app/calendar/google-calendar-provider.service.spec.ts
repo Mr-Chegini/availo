@@ -198,6 +198,45 @@ describe('GoogleCalendarProvider', () => {
     expect(axios.post).not.toHaveBeenCalled();
   });
 
+  it('adds a location when creating a Google Calendar event with a meeting location', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        id: 'google-event-1',
+      },
+    });
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+    );
+
+    await provider.createEvent({
+      title: 'Call with user@example.com',
+      startsAt: '2026-05-15T07:00:00.000Z',
+      endsAt: '2026-05-15T07:30:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+      location: 'Google Meet',
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      expect.objectContaining({
+        location: 'Google Meet',
+      }),
+      expect.any(Object),
+    );
+  });
+
   it('cancels a Google Calendar event', async () => {
     vi.mocked(axios.delete).mockResolvedValueOnce({});
     const provider = new GoogleCalendarProvider(

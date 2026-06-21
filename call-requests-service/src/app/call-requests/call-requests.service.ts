@@ -50,12 +50,14 @@ interface AvailabilityRules {
   workdayEndHour: number;
   slotIntervalMinutes: number;
   durationMinutes: number;
+  meetingLocation?: string;
   minimumNoticeMinutes?: number;
   maxFutureDays?: number;
 }
 
 export interface CallRequestPublicBookingResponse extends CallRequestResponseDto {
   cancellationToken: string;
+  meetingLocation?: string;
 }
 
 export interface RescheduleCallRequestDto {
@@ -78,7 +80,12 @@ export class CallRequestsService {
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
     const callRequest = await this.createRequestedWithRules(
-      { email, phoneNumber, scheduledAt },
+      {
+        email,
+        phoneNumber,
+        scheduledAt,
+        meetingLocation: availabilityRules.meetingLocation,
+      },
       availabilityRules,
     );
 
@@ -95,11 +102,21 @@ export class CallRequestsService {
     const callRequest =
       (eventType.requiresApproval ?? true)
         ? await this.createRequestedWithRules(
-            { email, phoneNumber, scheduledAt },
+            {
+              email,
+              phoneNumber,
+              scheduledAt,
+              meetingLocation: availabilityRules.meetingLocation,
+            },
             availabilityRules,
           )
         : await this.createScheduledWithRules(
-            { email, phoneNumber, scheduledAt },
+            {
+              email,
+              phoneNumber,
+              scheduledAt,
+              meetingLocation: availabilityRules.meetingLocation,
+            },
             availabilityRules,
           );
 
@@ -111,6 +128,7 @@ export class CallRequestsService {
       email: string;
       phoneNumber: string;
       scheduledAt: Date;
+      meetingLocation?: string;
     },
     availabilityRules: AvailabilityRules,
   ): Promise<CallRequestDocument> {
@@ -124,6 +142,7 @@ export class CallRequestsService {
       email,
       phoneNumber,
       scheduledAt,
+      meetingLocation: input.meetingLocation,
     });
 
     const event: CallRequestedEvent = {
@@ -146,6 +165,7 @@ export class CallRequestsService {
       email: string;
       phoneNumber: string;
       scheduledAt: Date;
+      meetingLocation?: string;
     },
     availabilityRules: AvailabilityRules,
   ): Promise<CallRequestDocument> {
@@ -163,6 +183,7 @@ export class CallRequestsService {
         email,
         phoneNumber,
         scheduledAt,
+        meetingLocation: input.meetingLocation,
         status: CallRequestStatus.SCHEDULED,
         calendarProviderEventId: calendarEvent.providerEventId,
       });
@@ -267,6 +288,7 @@ export class CallRequestsService {
     email: string;
     phoneNumber: string;
     scheduledAt: Date;
+    meetingLocation?: string;
     status?: CallRequestStatus;
     calendarProviderEventId?: string;
   }): Promise<CallRequestDocument> {
@@ -278,6 +300,7 @@ export class CallRequestsService {
         status: CallRequestStatus;
         cancellationToken: string;
         calendarProviderEventId?: string;
+        meetingLocation?: string;
       } = {
         email: dto.email,
         phoneNumber: dto.phoneNumber,
@@ -288,6 +311,10 @@ export class CallRequestsService {
 
       if (dto.calendarProviderEventId) {
         createInput.calendarProviderEventId = dto.calendarProviderEventId;
+      }
+
+      if (dto.meetingLocation) {
+        createInput.meetingLocation = dto.meetingLocation;
       }
 
       return await this.callRequestModel.create(createInput);
@@ -614,6 +641,7 @@ export class CallRequestsService {
     return {
       ...this.toResponse(callRequest),
       cancellationToken: callRequest.cancellationToken,
+      meetingLocation: callRequest.meetingLocation,
     };
   }
 
@@ -622,6 +650,7 @@ export class CallRequestsService {
       email: string;
       phoneNumber: string;
       scheduledAt: Date;
+      meetingLocation?: string;
     },
     durationMinutes: number,
   ): CreateCalendarEventInput {
@@ -634,6 +663,7 @@ export class CallRequestsService {
       ).toISOString(),
       attendeeEmail: input.email,
       attendeePhoneNumber: input.phoneNumber,
+      location: input.meetingLocation,
     };
   }
 
@@ -749,6 +779,7 @@ function getAvailabilityRules(
       eventType?.slotIntervalMinutes ??
       DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
     durationMinutes: eventType?.durationMinutes ?? SLOT_INTERVAL_MINUTES,
+    meetingLocation: eventType?.meetingLocation,
     minimumNoticeMinutes: eventType?.minimumNoticeMinutes,
     maxFutureDays: eventType?.maxFutureDays,
   };

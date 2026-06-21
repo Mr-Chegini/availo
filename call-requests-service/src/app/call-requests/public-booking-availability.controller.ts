@@ -16,10 +16,12 @@ interface PublicBookingConfirmationDto {
   scheduledAt: string;
   status: CallRequestStatus;
   cancellationToken: string;
+  meetingLocation?: string;
   eventType: {
     slug: string;
     title: string;
     durationMinutes: number;
+    meetingLocation?: string;
   };
 }
 
@@ -111,7 +113,7 @@ function toPublicBookingConfirmation(
   booking: CallRequestPublicBookingResponse,
   eventType: EventTypeDocument,
 ): PublicBookingConfirmationDto {
-  return {
+  const confirmation: PublicBookingConfirmationDto = {
     bookingId: booking.id,
     email: booking.email,
     phoneNumber: booking.phoneNumber,
@@ -124,4 +126,14 @@ function toPublicBookingConfirmation(
       durationMinutes: eventType.durationMinutes,
     },
   };
+
+  if (booking.meetingLocation) {
+    confirmation.meetingLocation = booking.meetingLocation;
+  }
+
+  if (eventType.meetingLocation) {
+    confirmation.eventType.meetingLocation = eventType.meetingLocation;
+  }
+
+  return confirmation;
 }

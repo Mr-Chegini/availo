@@ -15,6 +15,7 @@ export interface PublicBookingPageResponse {
     title: string;
     durationMinutes: number;
     requiresApproval: boolean;
+    meetingLocation?: string;
     availabilityTimezone: string;
   }>;
 }
@@ -53,12 +54,18 @@ export class PublicBookingPagesService {
   private toPublicEventType(
     eventType: EventTypeDocument,
   ): PublicBookingPageResponse['eventTypes'][number] {
-    return {
+    const publicEventType: PublicBookingPageResponse['eventTypes'][number] = {
       slug: eventType.slug,
       title: eventType.title,
       durationMinutes: eventType.durationMinutes,
       requiresApproval: eventType.requiresApproval ?? true,
       availabilityTimezone: eventType.availabilityTimezone,
     };
+
+    if (eventType.meetingLocation) {
+      publicEventType.meetingLocation = eventType.meetingLocation;
+    }
+
+    return publicEventType;
   }
 }

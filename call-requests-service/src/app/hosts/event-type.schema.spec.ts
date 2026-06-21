@@ -17,6 +17,8 @@ describe('EventTypeSchema', () => {
     expect(EventTypeSchema.path('durationMinutes')?.isRequired).toBe(true);
     expect(EventTypeSchema.path('isActive')?.isRequired).toBe(true);
     expect(EventTypeSchema.path('requiresApproval')?.isRequired).toBe(true);
+    expect(EventTypeSchema.path('meetingLocation')).toBeDefined();
+    expect(EventTypeSchema.path('meetingLocation')?.isRequired).not.toBe(true);
     expect(EventTypeSchema.path('availabilityTimezone')?.isRequired).toBe(true);
     expect(EventTypeSchema.path('workdayStartHour')?.isRequired).toBe(true);
     expect(EventTypeSchema.path('workdayEndHour')?.isRequired).toBe(true);

@@ -33,6 +33,9 @@ export class EventType {
   @Prop({ required: true, default: true })
   requiresApproval!: boolean;
 
+  @Prop({ trim: true })
+  meetingLocation?: string;
+
   @Prop({
     required: true,
     trim: true,

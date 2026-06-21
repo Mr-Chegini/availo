@@ -26,6 +26,7 @@ type TestCallRequestDocument = Pick<
   | 'adminNote'
   | 'cancellationToken'
   | 'calendarProviderEventId'
+  | 'meetingLocation'
   | 'createdAt'
   | 'updatedAt'
   | 'save'
@@ -133,6 +134,7 @@ describe('CallRequestsService', () => {
     const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED, {
       scheduledAt,
+      meetingLocation: 'Google Meet',
     });
     callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
@@ -148,6 +150,7 @@ describe('CallRequestsService', () => {
         workdayStartHour: 9,
         workdayEndHour: 17,
         slotIntervalMinutes: 30,
+        meetingLocation: 'Google Meet',
       }) as never,
     );
 
@@ -164,6 +167,7 @@ describe('CallRequestsService', () => {
       scheduledAt,
       status: CallRequestStatus.REQUESTED,
       cancellationToken: expect.any(String),
+      meetingLocation: 'Google Meet',
     });
     expect(
       callRequestModel.create.mock.calls[0][0].cancellationToken,
@@ -178,6 +182,7 @@ describe('CallRequestsService', () => {
     );
     expect(response.status).toBe(CallRequestStatus.REQUESTED);
     expect(response.cancellationToken).toBe('cancel-token');
+    expect(response.meetingLocation).toBe('Google Meet');
   });
 
   it('auto-confirms public bookings for event types that do not require approval', async () => {
@@ -204,6 +209,7 @@ describe('CallRequestsService', () => {
         workdayStartHour: 9,
         workdayEndHour: 17,
         slotIntervalMinutes: 30,
+        meetingLocation: 'Zoom',
       }) as never,
     );
 
@@ -214,6 +220,7 @@ describe('CallRequestsService', () => {
       status: CallRequestStatus.SCHEDULED,
       cancellationToken: expect.any(String),
       calendarProviderEventId: 'google-event-1',
+      meetingLocation: 'Zoom',
     });
     expect(calendarProvider.createEvent).toHaveBeenCalledWith({
       title: 'Call with user@example.com',
@@ -221,6 +228,7 @@ describe('CallRequestsService', () => {
       endsAt: '2030-01-01T09:30:00.000Z',
       attendeeEmail: 'user@example.com',
       attendeePhoneNumber: '+90 555 111 22 33',
+      location: 'Zoom',
     });
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
@@ -380,6 +388,7 @@ describe('CallRequestsService', () => {
       endsAt: '2026-05-15T07:30:00.000Z',
       attendeeEmail: 'user@example.com',
       attendeePhoneNumber: '+90 555 111 22 33',
+      location: undefined,
     });
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_APPROVED,
@@ -622,6 +631,7 @@ function mockCallRequest(
   options: {
     scheduledAt?: Date;
     calendarProviderEventId?: string;
+    meetingLocation?: string;
   } = {},
 ): TestCallRequestDocument {
   const scheduledAt = options.scheduledAt ?? SCHEDULED_AT;
@@ -634,6 +644,7 @@ function mockCallRequest(
     adminNote: undefined,
     cancellationToken: 'cancel-token',
     calendarProviderEventId: options.calendarProviderEventId,
+    meetingLocation: options.meetingLocation,
     createdAt: CREATED_AT,
     updatedAt: UPDATED_AT,
     save: vi.fn(),
@@ -654,6 +665,7 @@ function mockEventTypeRules(
     minimumNoticeMinutes: number;
     maxFutureDays: number;
     requiresApproval: boolean;
+    meetingLocation: string;
   }> = {},
 ) {
   return {

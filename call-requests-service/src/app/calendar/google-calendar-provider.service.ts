@@ -89,25 +89,44 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return {};
     }
 
+    const eventInput: {
+      summary: string;
+      start: {
+        dateTime: string;
+      };
+      end: {
+        dateTime: string;
+      };
+      attendees: Array<{
+        email: string;
+      }>;
+      description: string;
+      location?: string;
+    } = {
+      summary: input.title,
+      start: {
+        dateTime: input.startsAt,
+      },
+      end: {
+        dateTime: input.endsAt,
+      },
+      attendees: [
+        {
+          email: input.attendeeEmail,
+        },
+      ],
+      description: `Phone number: ${input.attendeePhoneNumber}`,
+    };
+
+    if (input.location) {
+      eventInput.location = input.location;
+    }
+
     const response = await axios.post<GoogleCreateEventResponse>(
       `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
         connection.primaryCalendarId,
       )}/events`,
-      {
-        summary: input.title,
-        start: {
-          dateTime: input.startsAt,
-        },
-        end: {
-          dateTime: input.endsAt,
-        },
-        attendees: [
-          {
-            email: input.attendeeEmail,
-          },
-        ],
-        description: `Phone number: ${input.attendeePhoneNumber}`,
-      },
+      eventInput,
       {
         headers: {
           Authorization: `Bearer ${connection.accessToken}`,

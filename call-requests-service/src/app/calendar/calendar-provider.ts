@@ -17,6 +17,7 @@ export interface CreateCalendarEventInput {
   endsAt: string;
   attendeeEmail: string;
   attendeePhoneNumber: string;
+  location?: string;
 }
 
 export interface CreateCalendarEventResult {
