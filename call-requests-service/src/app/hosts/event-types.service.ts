@@ -19,6 +19,7 @@ const DEFAULT_EVENT_TYPE_INPUT = {
   title: '30 min intro call',
   durationMinutes: 30,
   isActive: true,
+  requiresApproval: true,
   availabilityTimezone: DEFAULT_EVENT_TYPE_TIMEZONE,
   workdayStartHour: DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
   workdayEndHour: DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,

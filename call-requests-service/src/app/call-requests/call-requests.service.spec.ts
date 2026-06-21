@@ -180,6 +180,62 @@ describe('CallRequestsService', () => {
     expect(response.cancellationToken).toBe('cancel-token');
   });
 
+  it('auto-confirms public bookings for event types that do not require approval', async () => {
+    const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      scheduledAt,
+      calendarProviderEventId: 'google-event-1',
+    });
+    callRequestModel.exists.mockResolvedValue(null);
+    callRequestModel.create.mockResolvedValue(callRequest);
+    calendarProvider.createEvent.mockResolvedValueOnce({
+      providerEventId: 'google-event-1',
+    });
+
+    const response = await service.createForEventType(
+      {
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+      mockEventTypeRules({
+        requiresApproval: false,
+        availabilityTimezone: 'UTC',
+        workdayStartHour: 9,
+        workdayEndHour: 17,
+        slotIntervalMinutes: 30,
+      }) as never,
+    );
+
+    expect(callRequestModel.create).toHaveBeenCalledWith({
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt,
+      status: CallRequestStatus.SCHEDULED,
+      cancellationToken: expect.any(String),
+      calendarProviderEventId: 'google-event-1',
+    });
+    expect(calendarProvider.createEvent).toHaveBeenCalledWith({
+      title: 'Call with user@example.com',
+      startsAt: '2030-01-01T09:00:00.000Z',
+      endsAt: '2030-01-01T09:30:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+    });
+    expect(rabbitmqPublisherService.publish).toHaveBeenCalledOnce();
+    expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
+      RabbitmqRoutingKey.CALL_APPROVED,
+      {
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+    );
+    expect(response.status).toBe(CallRequestStatus.SCHEDULED);
+    expect(response.cancellationToken).toBe('cancel-token');
+  });
+
   it('marks local reservations and external calendar busy slots as unavailable', async () => {
     mockAvailabilityCallRequests([
       {
@@ -597,6 +653,7 @@ function mockEventTypeRules(
     slotIntervalMinutes: number;
     minimumNoticeMinutes: number;
     maxFutureDays: number;
+    requiresApproval: boolean;
   }> = {},
 ) {
   return {

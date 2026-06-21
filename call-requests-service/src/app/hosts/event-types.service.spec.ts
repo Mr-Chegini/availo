@@ -175,6 +175,7 @@ describe('EventTypesService', () => {
       title: '30 min intro call',
       durationMinutes: 30,
       isActive: true,
+      requiresApproval: true,
       availabilityTimezone: 'Europe/Istanbul',
       workdayStartHour: 10,
       workdayEndHour: 18,

@@ -14,6 +14,7 @@ export interface PublicBookingPageResponse {
     slug: string;
     title: string;
     durationMinutes: number;
+    requiresApproval: boolean;
     availabilityTimezone: string;
   }>;
 }
@@ -56,6 +57,7 @@ export class PublicBookingPagesService {
       slug: eventType.slug,
       title: eventType.title,
       durationMinutes: eventType.durationMinutes,
+      requiresApproval: eventType.requiresApproval ?? true,
       availabilityTimezone: eventType.availabilityTimezone,
     };
   }

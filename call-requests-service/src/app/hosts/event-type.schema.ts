@@ -30,6 +30,9 @@ export class EventType {
   @Prop({ required: true, default: true })
   isActive!: boolean;
 
+  @Prop({ required: true, default: true })
+  requiresApproval!: boolean;
+
   @Prop({
     required: true,
     trim: true,

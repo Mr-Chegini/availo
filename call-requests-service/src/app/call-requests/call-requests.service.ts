@@ -39,6 +39,7 @@ import { createCancellationToken } from './call-request-tokens';
 import { normalizeCreateCallRequestInput } from './create-call-request-input';
 import {
   CALENDAR_PROVIDER,
+  type CreateCalendarEventInput,
   type CalendarProvider,
 } from '../calendar/calendar-provider';
 import { EventTypesService } from '../hosts/event-types.service';
@@ -76,7 +77,7 @@ export class CallRequestsService {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    const callRequest = await this.createWithRules(
+    const callRequest = await this.createRequestedWithRules(
       { email, phoneNumber, scheduledAt },
       availabilityRules,
     );
@@ -89,16 +90,23 @@ export class CallRequestsService {
     eventType: EventTypeDocument,
   ): Promise<CallRequestPublicBookingResponse> {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
+    const availabilityRules = getAvailabilityRules(eventType);
 
-    const callRequest = await this.createWithRules(
-      { email, phoneNumber, scheduledAt },
-      getAvailabilityRules(eventType),
-    );
+    const callRequest =
+      (eventType.requiresApproval ?? true)
+        ? await this.createRequestedWithRules(
+            { email, phoneNumber, scheduledAt },
+            availabilityRules,
+          )
+        : await this.createScheduledWithRules(
+            { email, phoneNumber, scheduledAt },
+            availabilityRules,
+          );
 
     return this.toPublicBookingResponse(callRequest);
   }
 
-  private async createWithRules(
+  private async createRequestedWithRules(
     input: {
       email: string;
       phoneNumber: string;
@@ -131,6 +139,46 @@ export class CallRequestsService {
     );
 
     return callRequest;
+  }
+
+  private async createScheduledWithRules(
+    input: {
+      email: string;
+      phoneNumber: string;
+      scheduledAt: Date;
+    },
+    availabilityRules: AvailabilityRules,
+  ): Promise<CallRequestDocument> {
+    const { email, phoneNumber, scheduledAt } = input;
+
+    this.validateScheduledAt(scheduledAt, availabilityRules);
+    await this.assertSlotAvailable(scheduledAt);
+
+    const calendarEvent = await this.calendarProvider.createEvent(
+      this.toCalendarEventInput(input, availabilityRules.durationMinutes),
+    );
+
+    try {
+      const callRequest = await this.createCallRequest({
+        email,
+        phoneNumber,
+        scheduledAt,
+        status: CallRequestStatus.SCHEDULED,
+        calendarProviderEventId: calendarEvent.providerEventId,
+      });
+
+      await this.publishCallApproved(callRequest);
+
+      return callRequest;
+    } catch (error) {
+      if (calendarEvent.providerEventId) {
+        await this.calendarProvider.cancelEvent({
+          providerEventId: calendarEvent.providerEventId,
+        });
+      }
+
+      throw error;
+    }
   }
 
   private normalizeCreateInput(
@@ -219,13 +267,30 @@ export class CallRequestsService {
     email: string;
     phoneNumber: string;
     scheduledAt: Date;
+    status?: CallRequestStatus;
+    calendarProviderEventId?: string;
   }): Promise<CallRequestDocument> {
     try {
-      return await this.callRequestModel.create({
-        ...dto,
-        status: CallRequestStatus.REQUESTED,
+      const createInput: {
+        email: string;
+        phoneNumber: string;
+        scheduledAt: Date;
+        status: CallRequestStatus;
+        cancellationToken: string;
+        calendarProviderEventId?: string;
+      } = {
+        email: dto.email,
+        phoneNumber: dto.phoneNumber,
+        scheduledAt: dto.scheduledAt,
+        status: dto.status ?? CallRequestStatus.REQUESTED,
         cancellationToken: createCancellationToken(),
-      });
+      };
+
+      if (dto.calendarProviderEventId) {
+        createInput.calendarProviderEventId = dto.calendarProviderEventId;
+      }
+
+      return await this.callRequestModel.create(createInput);
     } catch (error) {
       if (isDuplicateKeyError(error)) {
         throw new BadRequestException('This time slot is already reserved');
@@ -350,32 +415,15 @@ export class CallRequestsService {
 
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    const calendarEvent = await this.calendarProvider.createEvent({
-      title: `Call with ${callRequest.email}`,
-      startsAt: callRequest.scheduledAt.toISOString(),
-      endsAt: this.getCallEndsAt(
-        callRequest.scheduledAt,
-        availabilityRules.durationMinutes,
-      ).toISOString(),
-      attendeeEmail: callRequest.email,
-      attendeePhoneNumber: callRequest.phoneNumber,
-    });
+    const calendarEvent = await this.calendarProvider.createEvent(
+      this.toCalendarEventInput(callRequest, availabilityRules.durationMinutes),
+    );
 
     callRequest.status = CallRequestStatus.SCHEDULED;
     callRequest.calendarProviderEventId = calendarEvent.providerEventId;
     await callRequest.save();
 
-    const event: CallApprovedEvent = {
-      callRequestId: callRequest.id,
-      email: callRequest.email,
-      phoneNumber: callRequest.phoneNumber,
-      scheduledAt: callRequest.scheduledAt.toISOString(),
-    };
-
-    await this.rabbitmqPublisherService.publish(
-      RabbitmqRoutingKey.CALL_APPROVED,
-      event,
-    );
+    await this.publishCallApproved(callRequest);
 
     return this.toResponse(callRequest);
   }
@@ -567,6 +615,42 @@ export class CallRequestsService {
       ...this.toResponse(callRequest),
       cancellationToken: callRequest.cancellationToken,
     };
+  }
+
+  private toCalendarEventInput(
+    input: {
+      email: string;
+      phoneNumber: string;
+      scheduledAt: Date;
+    },
+    durationMinutes: number,
+  ): CreateCalendarEventInput {
+    return {
+      title: `Call with ${input.email}`,
+      startsAt: input.scheduledAt.toISOString(),
+      endsAt: this.getCallEndsAt(
+        input.scheduledAt,
+        durationMinutes,
+      ).toISOString(),
+      attendeeEmail: input.email,
+      attendeePhoneNumber: input.phoneNumber,
+    };
+  }
+
+  private async publishCallApproved(
+    callRequest: CallRequestDocument,
+  ): Promise<void> {
+    const event: CallApprovedEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_APPROVED,
+      event,
+    );
   }
 
   private async getDefaultAvailabilityRules(): Promise<AvailabilityRules> {
