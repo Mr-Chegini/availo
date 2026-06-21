@@ -41,6 +41,9 @@ import { EmailModule } from './email/email.module';
         ),
 
         ADMIN_EMAIL: Joi.string().email().required(),
+        PUBLIC_BOOKING_BASE_URL: Joi.string()
+          .uri({ allowRelative: false })
+          .default('http://localhost:3000/api'),
         EMAIL_PROVIDER: Joi.string()
           .valid('console', 'smtp')
           .default('console'),

@@ -10,24 +10,46 @@ import type { EmailMessage } from './email-sender';
 
 export function buildCallRequestedEmail(
   payload: CallRequestedEvent,
+  publicBookingBaseUrl?: string,
 ): EmailMessage {
+  const actionLinksText = buildPublicBookingActionLinksText(
+    payload,
+    publicBookingBaseUrl,
+  );
+
   return {
     template: 'CALL_REQUESTED',
     to: payload.email,
     subject: 'Your call request was received',
-    text: `Your call request for ${payload.scheduledAt} was received and is waiting for admin approval.`,
+    text: [
+      `Your call request for ${payload.scheduledAt} was received and is waiting for admin approval.`,
+      actionLinksText,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     metadata: { payload },
   };
 }
 
 export function buildCallApprovedEmail(
   payload: CallApprovedEvent,
+  publicBookingBaseUrl?: string,
 ): EmailMessage {
+  const actionLinksText = buildPublicBookingActionLinksText(
+    payload,
+    publicBookingBaseUrl,
+  );
+
   return {
     template: 'CALL_APPROVED',
     to: payload.email,
     subject: 'Your call request was approved',
-    text: `Your call request for ${payload.scheduledAt} was approved.`,
+    text: [
+      `Your call request for ${payload.scheduledAt} was approved.`,
+      actionLinksText,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     metadata: { payload },
   };
 }
@@ -101,4 +123,51 @@ export function buildDailyDigestEmail(
     text: callLines,
     metadata: { payload },
   };
+}
+
+function buildPublicBookingActionLinksText(
+  payload: CallRequestedEvent | CallApprovedEvent,
+  publicBookingBaseUrl?: string,
+): string | undefined {
+  if (!payload.publicBooking || !publicBookingBaseUrl) {
+    return undefined;
+  }
+
+  const bookingUrl = buildPublicBookingUrl(
+    publicBookingBaseUrl,
+    payload.publicBooking.hostSlug,
+    payload.publicBooking.eventTypeSlug,
+    payload.callRequestId,
+  );
+  const tokenQuery = `token=${encodeURIComponent(
+    payload.publicBooking.cancellationToken,
+  )}`;
+
+  return [
+    `Manage booking: ${bookingUrl}?${tokenQuery}`,
+    `Cancel booking: ${bookingUrl}/cancel?${tokenQuery}`,
+    `Reschedule booking: ${bookingUrl}/reschedule?${tokenQuery}`,
+  ].join('\n');
+}
+
+function buildPublicBookingUrl(
+  publicBookingBaseUrl: string,
+  hostSlug: string,
+  eventTypeSlug: string,
+  bookingId: string,
+): string {
+  const baseUrl = publicBookingBaseUrl.replace(/\/+$/, '');
+  const path = [
+    'booking-pages',
+    hostSlug,
+    'event-types',
+    eventTypeSlug,
+    'availability',
+    'bookings',
+    bookingId,
+  ]
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return `${baseUrl}/${path}`;
 }

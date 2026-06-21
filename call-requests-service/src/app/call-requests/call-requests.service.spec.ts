@@ -139,6 +139,9 @@ describe('CallRequestsService', () => {
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED, {
       scheduledAt,
       meetingLocation: 'Google Meet',
+      publicBookingHostId: 'host-1',
+      publicBookingHostSlug: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
     });
     callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
@@ -173,6 +176,7 @@ describe('CallRequestsService', () => {
       cancellationToken: expect.any(String),
       meetingLocation: 'Google Meet',
       publicBookingHostId: 'host-1',
+      publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
     });
     expect(
@@ -184,6 +188,11 @@ describe('CallRequestsService', () => {
         callRequestId: 'call-1',
         email: 'user@example.com',
         scheduledAt: '2030-01-01T09:00:00.000Z',
+        publicBooking: {
+          hostSlug: 'host-1',
+          eventTypeSlug: 'intro-call',
+          cancellationToken: 'cancel-token',
+        },
       }),
     );
     expect(response.status).toBe(CallRequestStatus.REQUESTED);
@@ -196,6 +205,9 @@ describe('CallRequestsService', () => {
     const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
       scheduledAt,
       calendarProviderEventId: 'google-event-1',
+      publicBookingHostId: 'host-1',
+      publicBookingHostSlug: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
     });
     callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
@@ -228,6 +240,7 @@ describe('CallRequestsService', () => {
       calendarProviderEventId: 'google-event-1',
       meetingLocation: 'Zoom',
       publicBookingHostId: 'host-1',
+      publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
     });
     expect(calendarProvider.createEvent).toHaveBeenCalledWith({
@@ -246,6 +259,11 @@ describe('CallRequestsService', () => {
         email: 'user@example.com',
         phoneNumber: '+90 555 111 22 33',
         scheduledAt: '2030-01-01T09:00:00.000Z',
+        publicBooking: {
+          hostSlug: 'host-1',
+          eventTypeSlug: 'intro-call',
+          cancellationToken: 'cancel-token',
+        },
       },
     );
     expect(response.status).toBe(CallRequestStatus.SCHEDULED);
@@ -743,6 +761,7 @@ function mockCallRequest(
     calendarProviderEventId?: string;
     meetingLocation?: string;
     publicBookingHostId?: string;
+    publicBookingHostSlug?: string;
     publicBookingEventTypeSlug?: string;
   } = {},
 ): TestCallRequestDocument {
@@ -758,6 +777,7 @@ function mockCallRequest(
     calendarProviderEventId: options.calendarProviderEventId,
     meetingLocation: options.meetingLocation,
     publicBookingHostId: options.publicBookingHostId,
+    publicBookingHostSlug: options.publicBookingHostSlug,
     publicBookingEventTypeSlug: options.publicBookingEventTypeSlug,
     createdAt: CREATED_AT,
     updatedAt: UPDATED_AT,

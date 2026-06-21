@@ -57,6 +57,7 @@ interface AvailabilityRules {
 
 interface PublicBookingRouteContext {
   hostId: string;
+  hostSlug: string;
   eventTypeSlug: string;
 }
 
@@ -100,6 +101,7 @@ export class CallRequestsService {
   async createForEventType(
     dto: CreateCallRequestDto,
     eventType: EventTypeDocument,
+    hostSlug?: string,
   ): Promise<CallRequestPublicBookingResponse> {
     const { email, phoneNumber, scheduledAt } = this.normalizeCreateInput(dto);
     const availabilityRules = getAvailabilityRules(eventType);
@@ -112,7 +114,10 @@ export class CallRequestsService {
               phoneNumber,
               scheduledAt,
               meetingLocation: availabilityRules.meetingLocation,
-              publicBookingRoute: getPublicBookingRouteContext(eventType),
+              publicBookingRoute: getPublicBookingRouteContext(
+                eventType,
+                hostSlug,
+              ),
             },
             availabilityRules,
           )
@@ -122,7 +127,10 @@ export class CallRequestsService {
               phoneNumber,
               scheduledAt,
               meetingLocation: availabilityRules.meetingLocation,
-              publicBookingRoute: getPublicBookingRouteContext(eventType),
+              publicBookingRoute: getPublicBookingRouteContext(
+                eventType,
+                hostSlug,
+              ),
             },
             availabilityRules,
           );
@@ -160,6 +168,11 @@ export class CallRequestsService {
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    const publicBooking = toPublicBookingEventContext(callRequest);
+
+    if (publicBooking) {
+      event.publicBooking = publicBooking;
+    }
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_REQUESTED,
@@ -314,6 +327,7 @@ export class CallRequestsService {
         calendarProviderEventId?: string;
         meetingLocation?: string;
         publicBookingHostId?: string;
+        publicBookingHostSlug?: string;
         publicBookingEventTypeSlug?: string;
       } = {
         email: dto.email,
@@ -333,6 +347,7 @@ export class CallRequestsService {
 
       if (dto.publicBookingRoute) {
         createInput.publicBookingHostId = dto.publicBookingRoute.hostId;
+        createInput.publicBookingHostSlug = dto.publicBookingRoute.hostSlug;
         createInput.publicBookingEventTypeSlug =
           dto.publicBookingRoute.eventTypeSlug;
       }
@@ -763,6 +778,11 @@ export class CallRequestsService {
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    const publicBooking = toPublicBookingEventContext(callRequest);
+
+    if (publicBooking) {
+      event.publicBooking = publicBooking;
+    }
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_APPROVED,
@@ -874,10 +894,30 @@ function getAvailabilityRules(
 
 function getPublicBookingRouteContext(
   eventType: EventTypeDocument,
+  hostSlug = eventType.hostId.toString(),
 ): PublicBookingRouteContext {
   return {
     hostId: eventType.hostId.toString(),
+    hostSlug,
     eventTypeSlug: eventType.slug,
+  };
+}
+
+function toPublicBookingEventContext(
+  callRequest: CallRequestDocument,
+): CallRequestedEvent['publicBooking'] {
+  if (
+    !callRequest.publicBookingHostId ||
+    !callRequest.publicBookingHostSlug ||
+    !callRequest.publicBookingEventTypeSlug
+  ) {
+    return undefined;
+  }
+
+  return {
+    hostSlug: callRequest.publicBookingHostSlug,
+    eventTypeSlug: callRequest.publicBookingEventTypeSlug,
+    cancellationToken: callRequest.cancellationToken,
   };
 }
 

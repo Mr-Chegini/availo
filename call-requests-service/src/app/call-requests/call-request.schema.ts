@@ -44,6 +44,9 @@ export class CallRequest {
   publicBookingHostId?: string;
 
   @Prop({ trim: true })
+  publicBookingHostSlug?: string;
+
+  @Prop({ trim: true })
   publicBookingEventTypeSlug?: string;
 
   createdAt!: Date;

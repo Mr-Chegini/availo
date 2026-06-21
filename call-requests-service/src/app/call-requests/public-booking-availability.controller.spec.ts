@@ -134,6 +134,7 @@ describe('PublicBookingAvailabilityController', () => {
     expect(callRequestsService.createForEventType).toHaveBeenCalledWith(
       dto,
       eventType,
+      'default-admin',
     );
   });
 

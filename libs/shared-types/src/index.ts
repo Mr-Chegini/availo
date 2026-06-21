@@ -17,6 +17,13 @@ export interface CallRequestedEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+  publicBooking?: PublicBookingEventContext;
+}
+
+export interface PublicBookingEventContext {
+  hostSlug: string;
+  eventTypeSlug: string;
+  cancellationToken: string;
 }
 
 export interface AvailabilitySlotDto {
@@ -53,6 +60,7 @@ export interface CallApprovedEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+  publicBooking?: PublicBookingEventContext;
 }
 
 export interface CallRejectedEvent {

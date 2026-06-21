@@ -69,6 +69,7 @@ export class PublicBookingAvailabilityController {
     const booking = await this.callRequestsService.createForEventType(
       dto,
       eventType,
+      hostSlug,
     );
 
     return toPublicBookingConfirmation(booking, eventType);

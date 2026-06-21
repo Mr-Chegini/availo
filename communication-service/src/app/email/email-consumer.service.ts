@@ -131,7 +131,9 @@ export class EmailConsumerService
   private async sendCallRequestedEmail(
     payload: CallRequestedEvent,
   ): Promise<void> {
-    await this.emailSender.send(buildCallRequestedEmail(payload));
+    await this.emailSender.send(
+      buildCallRequestedEmail(payload, this.getPublicBookingBaseUrl()),
+    );
   }
 
   async onApplicationShutdown() {
@@ -201,7 +203,9 @@ export class EmailConsumerService
   private async sendCallApprovedEmail(
     payload: CallApprovedEvent,
   ): Promise<void> {
-    await this.emailSender.send(buildCallApprovedEmail(payload));
+    await this.emailSender.send(
+      buildCallApprovedEmail(payload, this.getPublicBookingBaseUrl()),
+    );
   }
 
   private async sendCallRejectedEmail(
@@ -234,5 +238,9 @@ export class EmailConsumerService
     for (const message of messages) {
       await this.emailSender.send(message);
     }
+  }
+
+  private getPublicBookingBaseUrl(): string | undefined {
+    return this.configService.get<string>('PUBLIC_BOOKING_BASE_URL');
   }
 }
