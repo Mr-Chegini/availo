@@ -74,14 +74,44 @@ export class PublicBookingAvailabilityController {
     return toPublicBookingConfirmation(booking, eventType);
   }
 
+  @Get('bookings/:bookingId')
+  async getBooking(
+    @Param('hostSlug') hostSlug: string,
+    @Param('eventTypeSlug') eventTypeSlug: string,
+    @Param('bookingId') bookingId: string,
+    @Query('token') cancellationToken: string,
+  ): Promise<PublicBookingConfirmationDto> {
+    const host = await this.hostAccountsService.getBySlug(hostSlug);
+    const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
+      host._id,
+      eventTypeSlug,
+    );
+    const booking = await this.callRequestsService.getPublicBookingWithToken(
+      bookingId,
+      cancellationToken,
+      eventType,
+    );
+
+    return toPublicBookingConfirmation(booking, eventType);
+  }
+
   @Post('bookings/:bookingId/cancel')
-  cancelBooking(
+  async cancelBooking(
+    @Param('hostSlug') hostSlug: string,
+    @Param('eventTypeSlug') eventTypeSlug: string,
     @Param('bookingId') bookingId: string,
     @Query('token') cancellationToken: string,
   ) {
+    const host = await this.hostAccountsService.getBySlug(hostSlug);
+    const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
+      host._id,
+      eventTypeSlug,
+    );
+
     return this.callRequestsService.cancelWithToken(
       bookingId,
       cancellationToken,
+      eventType,
     );
   }
 

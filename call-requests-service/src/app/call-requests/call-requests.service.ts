@@ -55,6 +55,11 @@ interface AvailabilityRules {
   maxFutureDays?: number;
 }
 
+interface PublicBookingRouteContext {
+  hostId: string;
+  eventTypeSlug: string;
+}
+
 export interface CallRequestPublicBookingResponse extends CallRequestResponseDto {
   cancellationToken: string;
   meetingLocation?: string;
@@ -107,6 +112,7 @@ export class CallRequestsService {
               phoneNumber,
               scheduledAt,
               meetingLocation: availabilityRules.meetingLocation,
+              publicBookingRoute: getPublicBookingRouteContext(eventType),
             },
             availabilityRules,
           )
@@ -116,6 +122,7 @@ export class CallRequestsService {
               phoneNumber,
               scheduledAt,
               meetingLocation: availabilityRules.meetingLocation,
+              publicBookingRoute: getPublicBookingRouteContext(eventType),
             },
             availabilityRules,
           );
@@ -129,6 +136,7 @@ export class CallRequestsService {
       phoneNumber: string;
       scheduledAt: Date;
       meetingLocation?: string;
+      publicBookingRoute?: PublicBookingRouteContext;
     },
     availabilityRules: AvailabilityRules,
   ): Promise<CallRequestDocument> {
@@ -143,6 +151,7 @@ export class CallRequestsService {
       phoneNumber,
       scheduledAt,
       meetingLocation: input.meetingLocation,
+      publicBookingRoute: input.publicBookingRoute,
     });
 
     const event: CallRequestedEvent = {
@@ -166,6 +175,7 @@ export class CallRequestsService {
       phoneNumber: string;
       scheduledAt: Date;
       meetingLocation?: string;
+      publicBookingRoute?: PublicBookingRouteContext;
     },
     availabilityRules: AvailabilityRules,
   ): Promise<CallRequestDocument> {
@@ -184,6 +194,7 @@ export class CallRequestsService {
         phoneNumber,
         scheduledAt,
         meetingLocation: input.meetingLocation,
+        publicBookingRoute: input.publicBookingRoute,
         status: CallRequestStatus.SCHEDULED,
         calendarProviderEventId: calendarEvent.providerEventId,
       });
@@ -289,6 +300,7 @@ export class CallRequestsService {
     phoneNumber: string;
     scheduledAt: Date;
     meetingLocation?: string;
+    publicBookingRoute?: PublicBookingRouteContext;
     status?: CallRequestStatus;
     calendarProviderEventId?: string;
   }): Promise<CallRequestDocument> {
@@ -301,6 +313,8 @@ export class CallRequestsService {
         cancellationToken: string;
         calendarProviderEventId?: string;
         meetingLocation?: string;
+        publicBookingHostId?: string;
+        publicBookingEventTypeSlug?: string;
       } = {
         email: dto.email,
         phoneNumber: dto.phoneNumber,
@@ -315,6 +329,12 @@ export class CallRequestsService {
 
       if (dto.meetingLocation) {
         createInput.meetingLocation = dto.meetingLocation;
+      }
+
+      if (dto.publicBookingRoute) {
+        createInput.publicBookingHostId = dto.publicBookingRoute.hostId;
+        createInput.publicBookingEventTypeSlug =
+          dto.publicBookingRoute.eventTypeSlug;
       }
 
       return await this.callRequestModel.create(createInput);
@@ -518,19 +538,29 @@ export class CallRequestsService {
   async cancelWithToken(
     id: string,
     cancellationToken: string,
+    eventType?: EventTypeDocument,
   ): Promise<CallRequestResponseDto> {
-    const callRequest = await this.callRequestModel
-      .findOne({
-        _id: id,
-        cancellationToken,
-      })
-      .exec();
-
-    if (!callRequest) {
-      throw new NotFoundException('Call request not found');
-    }
+    const callRequest = await this.findByPublicToken(
+      id,
+      cancellationToken,
+      eventType,
+    );
 
     return this.cancelCallRequest(callRequest);
+  }
+
+  async getPublicBookingWithToken(
+    id: string,
+    cancellationToken: string,
+    eventType: EventTypeDocument,
+  ): Promise<CallRequestPublicBookingResponse> {
+    const callRequest = await this.findByPublicToken(
+      id,
+      cancellationToken,
+      eventType,
+    );
+
+    return this.toPublicBookingResponse(callRequest);
   }
 
   async rescheduleWithToken(
@@ -539,16 +569,11 @@ export class CallRequestsService {
     dto: RescheduleCallRequestDto,
     eventType: EventTypeDocument,
   ): Promise<CallRequestPublicBookingResponse> {
-    const callRequest = await this.callRequestModel
-      .findOne({
-        _id: id,
-        cancellationToken,
-      })
-      .exec();
-
-    if (!callRequest) {
-      throw new NotFoundException('Call request not found');
-    }
+    const callRequest = await this.findByPublicToken(
+      id,
+      cancellationToken,
+      eventType,
+    );
 
     const scheduledAt = this.normalizeRescheduleInput(dto);
     const availabilityRules = getAvailabilityRules(eventType);
@@ -606,6 +631,35 @@ export class CallRequestsService {
       ),
       providerEventId: callRequest.calendarProviderEventId,
     });
+  }
+
+  private async findByPublicToken(
+    id: string,
+    cancellationToken: string,
+    eventType?: EventTypeDocument,
+  ): Promise<CallRequestDocument> {
+    const query: {
+      _id: string;
+      cancellationToken: string;
+      publicBookingHostId?: string;
+      publicBookingEventTypeSlug?: string;
+    } = {
+      _id: id,
+      cancellationToken,
+    };
+
+    if (eventType) {
+      query.publicBookingHostId = eventType.hostId.toString();
+      query.publicBookingEventTypeSlug = eventType.slug;
+    }
+
+    const callRequest = await this.callRequestModel.findOne(query).exec();
+
+    if (!callRequest) {
+      throw new NotFoundException('Call request not found');
+    }
+
+    return callRequest;
   }
 
   private async cancelCallRequest(
@@ -815,6 +869,15 @@ function getAvailabilityRules(
     meetingLocation: eventType?.meetingLocation,
     minimumNoticeMinutes: eventType?.minimumNoticeMinutes,
     maxFutureDays: eventType?.maxFutureDays,
+  };
+}
+
+function getPublicBookingRouteContext(
+  eventType: EventTypeDocument,
+): PublicBookingRouteContext {
+  return {
+    hostId: eventType.hostId.toString(),
+    eventTypeSlug: eventType.slug,
   };
 }
 

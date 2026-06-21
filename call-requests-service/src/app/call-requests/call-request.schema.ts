@@ -40,6 +40,12 @@ export class CallRequest {
   @Prop({ trim: true })
   meetingLocation?: string;
 
+  @Prop({ trim: true })
+  publicBookingHostId?: string;
+
+  @Prop({ trim: true })
+  publicBookingEventTypeSlug?: string;
+
   createdAt!: Date;
 
   updatedAt!: Date;

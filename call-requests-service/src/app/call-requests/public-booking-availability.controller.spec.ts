@@ -9,6 +9,7 @@ describe('PublicBookingAvailabilityController', () => {
   it.each([
     'getAvailability',
     'createBooking',
+    'getBooking',
     'cancelBooking',
     'rescheduleBooking',
   ] as const)('keeps %s unauthenticated', (methodName) => {
@@ -137,25 +138,116 @@ describe('PublicBookingAvailabilityController', () => {
   });
 
   it('cancels a booking by booking id and cancellation token', async () => {
+    const host = {
+      _id: 'host-1',
+    };
+    const eventType = {
+      slug: 'intro-call',
+      title: '30 min intro call',
+      durationMinutes: 30,
+    };
     const response = {
       id: 'call-1',
       status: 'CANCELED',
+    };
+    const hostAccountsService = {
+      getBySlug: vi.fn().mockResolvedValue(host),
+    };
+    const eventTypesService = {
+      getActiveByHostIdAndSlug: vi.fn().mockResolvedValue(eventType),
     };
     const callRequestsService = {
       cancelWithToken: vi.fn().mockResolvedValue(response),
     };
     const controller = new PublicBookingAvailabilityController(
-      {} as HostAccountsService,
-      {} as EventTypesService,
+      hostAccountsService as unknown as HostAccountsService,
+      eventTypesService as unknown as EventTypesService,
       callRequestsService as unknown as CallRequestsService,
     );
 
     await expect(
-      controller.cancelBooking('call-1', 'cancel-token'),
+      controller.cancelBooking(
+        'default-admin',
+        'intro-call',
+        'call-1',
+        'cancel-token',
+      ),
     ).resolves.toBe(response);
+    expect(hostAccountsService.getBySlug).toHaveBeenCalledWith('default-admin');
+    expect(eventTypesService.getActiveByHostIdAndSlug).toHaveBeenCalledWith(
+      'host-1',
+      'intro-call',
+    );
     expect(callRequestsService.cancelWithToken).toHaveBeenCalledWith(
       'call-1',
       'cancel-token',
+      eventType,
+    );
+  });
+
+  it('returns public booking details by booking id and cancellation token', async () => {
+    const host = {
+      _id: 'host-1',
+    };
+    const eventType = {
+      slug: 'intro-call',
+      title: '30 min intro call',
+      durationMinutes: 30,
+      meetingLocation: 'Google Meet',
+    };
+    const response = {
+      id: 'call-1',
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt: '2030-01-01T09:00:00.000Z',
+      status: 'SCHEDULED',
+      adminNote: 'internal note',
+      cancellationToken: 'cancel-token',
+      meetingLocation: 'Google Meet',
+      createdAt: '2030-01-01T08:00:00.000Z',
+      updatedAt: '2030-01-01T08:05:00.000Z',
+    };
+    const hostAccountsService = {
+      getBySlug: vi.fn().mockResolvedValue(host),
+    };
+    const eventTypesService = {
+      getActiveByHostIdAndSlug: vi.fn().mockResolvedValue(eventType),
+    };
+    const callRequestsService = {
+      getPublicBookingWithToken: vi.fn().mockResolvedValue(response),
+    };
+    const controller = new PublicBookingAvailabilityController(
+      hostAccountsService as unknown as HostAccountsService,
+      eventTypesService as unknown as EventTypesService,
+      callRequestsService as unknown as CallRequestsService,
+    );
+
+    await expect(
+      controller.getBooking(
+        'default-admin',
+        'intro-call',
+        'call-1',
+        'cancel-token',
+      ),
+    ).resolves.toEqual({
+      bookingId: 'call-1',
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt: '2030-01-01T09:00:00.000Z',
+      status: 'SCHEDULED',
+      cancellationToken: 'cancel-token',
+      meetingLocation: 'Google Meet',
+      eventType: {
+        slug: 'intro-call',
+        title: '30 min intro call',
+        durationMinutes: 30,
+        meetingLocation: 'Google Meet',
+      },
+    });
+    expect(callRequestsService.getPublicBookingWithToken).toHaveBeenCalledWith(
+      'call-1',
+      'cancel-token',
+      eventType,
     );
   });
 

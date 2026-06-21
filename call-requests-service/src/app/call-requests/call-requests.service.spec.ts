@@ -27,6 +27,8 @@ type TestCallRequestDocument = Pick<
   | 'cancellationToken'
   | 'calendarProviderEventId'
   | 'meetingLocation'
+  | 'publicBookingHostId'
+  | 'publicBookingEventTypeSlug'
   | 'createdAt'
   | 'updatedAt'
   | 'save'
@@ -170,6 +172,8 @@ describe('CallRequestsService', () => {
       status: CallRequestStatus.REQUESTED,
       cancellationToken: expect.any(String),
       meetingLocation: 'Google Meet',
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
     });
     expect(
       callRequestModel.create.mock.calls[0][0].cancellationToken,
@@ -223,6 +227,8 @@ describe('CallRequestsService', () => {
       cancellationToken: expect.any(String),
       calendarProviderEventId: 'google-event-1',
       meetingLocation: 'Zoom',
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
     });
     expect(calendarProvider.createEvent).toHaveBeenCalledWith({
       title: 'Call with user@example.com',
@@ -513,6 +519,41 @@ describe('CallRequestsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('returns public booking details with a matching route-scoped token', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
+      meetingLocation: 'Google Meet',
+    });
+    mockFindOne(callRequest);
+
+    const response = await service.getPublicBookingWithToken(
+      'call-1',
+      'cancel-token',
+      mockEventTypeRules({
+        meetingLocation: 'Google Meet',
+      }) as never,
+    );
+
+    expect(callRequestModel.findOne).toHaveBeenCalledWith({
+      _id: 'call-1',
+      cancellationToken: 'cancel-token',
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
+    });
+    expect(response).toEqual(
+      expect.objectContaining({
+        id: 'call-1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        status: CallRequestStatus.SCHEDULED,
+        cancellationToken: 'cancel-token',
+        meetingLocation: 'Google Meet',
+      }),
+    );
+    expect(response).not.toHaveProperty('calendarProviderEventId');
+  });
+
   it('reschedules requested calls with a matching cancellation token', async () => {
     const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
@@ -536,6 +577,8 @@ describe('CallRequestsService', () => {
     expect(callRequestModel.findOne).toHaveBeenCalledWith({
       _id: 'call-1',
       cancellationToken: 'cancel-token',
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
     });
     expect(callRequestModel.exists).toHaveBeenCalledWith({
       scheduledAt,
@@ -699,6 +742,8 @@ function mockCallRequest(
     scheduledAt?: Date;
     calendarProviderEventId?: string;
     meetingLocation?: string;
+    publicBookingHostId?: string;
+    publicBookingEventTypeSlug?: string;
   } = {},
 ): TestCallRequestDocument {
   const scheduledAt = options.scheduledAt ?? SCHEDULED_AT;
@@ -712,6 +757,8 @@ function mockCallRequest(
     cancellationToken: 'cancel-token',
     calendarProviderEventId: options.calendarProviderEventId,
     meetingLocation: options.meetingLocation,
+    publicBookingHostId: options.publicBookingHostId,
+    publicBookingEventTypeSlug: options.publicBookingEventTypeSlug,
     createdAt: CREATED_AT,
     updatedAt: UPDATED_AT,
     save: vi.fn(),
@@ -733,9 +780,13 @@ function mockEventTypeRules(
     maxFutureDays: number;
     requiresApproval: boolean;
     meetingLocation: string;
+    hostId: string;
+    slug: string;
   }> = {},
 ) {
   return {
+    hostId: 'host-1',
+    slug: 'intro-call',
     durationMinutes: 30,
     availabilityTimezone: 'UTC',
     workdayStartHour: 8,
