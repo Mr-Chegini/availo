@@ -34,6 +34,9 @@ export class CallRequest {
   @Prop({ required: true, trim: true })
   cancellationToken!: string;
 
+  @Prop({ trim: true })
+  calendarProviderEventId?: string;
+
   createdAt!: Date;
 
   updatedAt!: Date;

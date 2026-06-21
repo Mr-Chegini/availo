@@ -25,6 +25,7 @@ type TestCallRequestDocument = Pick<
   | 'status'
   | 'adminNote'
   | 'cancellationToken'
+  | 'calendarProviderEventId'
   | 'createdAt'
   | 'updatedAt'
   | 'save'
@@ -130,10 +131,9 @@ describe('CallRequestsService', () => {
 
   it('creates call requests with selected event type rules', async () => {
     const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
-    const callRequest = mockCallRequest(
-      CallRequestStatus.REQUESTED,
+    const callRequest = mockCallRequest(CallRequestStatus.REQUESTED, {
       scheduledAt,
-    );
+    });
     callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
 
@@ -309,10 +309,14 @@ describe('CallRequestsService', () => {
   it('approves requested calls and publishes an approval event', async () => {
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
     mockFindById(callRequest);
+    calendarProvider.createEvent.mockResolvedValueOnce({
+      providerEventId: 'google-event-1',
+    });
 
     const response = await service.approve('call-1');
 
     expect(callRequest.status).toBe(CallRequestStatus.SCHEDULED);
+    expect(callRequest.calendarProviderEventId).toBe('google-event-1');
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(calendarProvider.createEvent).toHaveBeenCalledWith({
       title: 'Call with user@example.com',
@@ -381,12 +385,18 @@ describe('CallRequestsService', () => {
   });
 
   it('cancels scheduled calls and publishes a cancellation event', async () => {
-    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      calendarProviderEventId: 'google-event-1',
+    });
     mockFindById(callRequest);
 
     const response = await service.cancel('call-1');
 
+    expect(calendarProvider.cancelEvent).toHaveBeenCalledWith({
+      providerEventId: 'google-event-1',
+    });
     expect(callRequest.status).toBe(CallRequestStatus.CANCELED);
+    expect(callRequest.calendarProviderEventId).toBeUndefined();
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_CANCELED,
@@ -400,7 +410,9 @@ describe('CallRequestsService', () => {
   });
 
   it('cancels scheduled calls with a matching cancellation token', async () => {
-    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      calendarProviderEventId: 'google-event-1',
+    });
     mockFindOne(callRequest);
 
     const response = await service.cancelWithToken('call-1', 'cancel-token');
@@ -409,7 +421,11 @@ describe('CallRequestsService', () => {
       _id: 'call-1',
       cancellationToken: 'cancel-token',
     });
+    expect(calendarProvider.cancelEvent).toHaveBeenCalledWith({
+      providerEventId: 'google-event-1',
+    });
     expect(callRequest.status).toBe(CallRequestStatus.CANCELED);
+    expect(callRequest.calendarProviderEventId).toBeUndefined();
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_CANCELED,
@@ -547,8 +563,12 @@ describe('CallRequestsService', () => {
 
 function mockCallRequest(
   status: CallRequestStatus,
-  scheduledAt = SCHEDULED_AT,
+  options: {
+    scheduledAt?: Date;
+    calendarProviderEventId?: string;
+  } = {},
 ): TestCallRequestDocument {
+  const scheduledAt = options.scheduledAt ?? SCHEDULED_AT;
   const callRequest = {
     id: 'call-1',
     email: 'user@example.com',
@@ -557,6 +577,7 @@ function mockCallRequest(
     status,
     adminNote: undefined,
     cancellationToken: 'cancel-token',
+    calendarProviderEventId: options.calendarProviderEventId,
     createdAt: CREATED_AT,
     updatedAt: UPDATED_AT,
     save: vi.fn(),

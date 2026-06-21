@@ -348,11 +348,9 @@ export class CallRequestsService {
       throw new ConflictException('Only requested calls can be approved');
     }
 
-    callRequest.status = CallRequestStatus.SCHEDULED;
-    await callRequest.save();
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
-    await this.calendarProvider.createEvent({
+    const calendarEvent = await this.calendarProvider.createEvent({
       title: `Call with ${callRequest.email}`,
       startsAt: callRequest.scheduledAt.toISOString(),
       endsAt: this.getCallEndsAt(
@@ -362,6 +360,10 @@ export class CallRequestsService {
       attendeeEmail: callRequest.email,
       attendeePhoneNumber: callRequest.phoneNumber,
     });
+
+    callRequest.status = CallRequestStatus.SCHEDULED;
+    callRequest.calendarProviderEventId = calendarEvent.providerEventId;
+    await callRequest.save();
 
     const event: CallApprovedEvent = {
       callRequestId: callRequest.id,
@@ -505,7 +507,14 @@ export class CallRequestsService {
       throw new ConflictException('Only scheduled calls can be canceled');
     }
 
+    if (callRequest.calendarProviderEventId) {
+      await this.calendarProvider.cancelEvent({
+        providerEventId: callRequest.calendarProviderEventId,
+      });
+    }
+
     callRequest.status = CallRequestStatus.CANCELED;
+    callRequest.calendarProviderEventId = undefined;
     await callRequest.save();
 
     const event: CallCanceledEvent = {

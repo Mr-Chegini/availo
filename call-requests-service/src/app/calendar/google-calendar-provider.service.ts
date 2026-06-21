@@ -120,8 +120,23 @@ export class GoogleCalendarProvider implements CalendarProvider {
     };
   }
 
-  async cancelEvent(_input: CancelCalendarEventInput): Promise<void> {
-    await this.getConnectionForDefaultOwner();
+  async cancelEvent(input: CancelCalendarEventInput): Promise<void> {
+    const connection = await this.getConnectionForDefaultOwner();
+
+    if (!connection) {
+      return;
+    }
+
+    await axios.delete(
+      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+        connection.primaryCalendarId,
+      )}/events/${encodeURIComponent(input.providerEventId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+        },
+      },
+    );
   }
 
   private async getConnectionForDefaultOwner(): Promise<

@@ -197,4 +197,54 @@ describe('GoogleCalendarProvider', () => {
     ).resolves.toEqual({});
     expect(axios.post).not.toHaveBeenCalled();
   });
+
+  it('cancels a Google Calendar event', async () => {
+    vi.mocked(axios.delete).mockResolvedValueOnce({});
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+    );
+
+    await expect(
+      provider.cancelEvent({
+        providerEventId: 'google-event-1',
+      }),
+    ).resolves.toBeUndefined();
+    expect(axios.delete).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-1',
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+  });
+
+  it('skips event cancellation when no active Google account is connected', async () => {
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([]),
+      } as unknown as never,
+      {
+        restore: vi.fn(),
+      } as unknown as never,
+    );
+
+    await expect(
+      provider.cancelEvent({
+        providerEventId: 'google-event-1',
+      }),
+    ).resolves.toBeUndefined();
+    expect(axios.delete).not.toHaveBeenCalled();
+  });
 });
