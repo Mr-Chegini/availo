@@ -23,6 +23,10 @@ describe('email templates', () => {
       subject: 'Your call request was received',
       text: 'Your call request for 2026-05-15T07:00:00.000Z was received and is waiting for admin approval.',
     });
+    expect(email.html).toContain('<h1>Your call request was received</h1>');
+    expect(email.html).toContain(
+      '<p>Your call request for 2026-05-15T07:00:00.000Z was received and is waiting for admin approval.</p>',
+    );
     expect(email.metadata).toEqual({ payload });
   });
 
@@ -51,6 +55,15 @@ describe('email templates', () => {
     expect(email.text).toContain(
       'Reschedule booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token',
     );
+    expect(email.html).toContain(
+      '<a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token">Manage booking</a>',
+    );
+    expect(email.html).toContain(
+      '<a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/cancel?token=cancel-token">Cancel booking</a>',
+    );
+    expect(email.html).toContain(
+      '<a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1/reschedule?token=cancel-token">Reschedule booking</a>',
+    );
   });
 
   it('builds a call approved email', () => {
@@ -64,6 +77,10 @@ describe('email templates', () => {
     expect(email.subject).toBe('Your call request was approved');
     expect(email.text).toBe(
       'Your call request for 2026-05-15T07:00:00.000Z was approved.',
+    );
+    expect(email.html).toContain('<h1>Your call request was approved</h1>');
+    expect(email.html).toContain(
+      '<p>Your call request for 2026-05-15T07:00:00.000Z was approved.</p>',
     );
   });
 
@@ -85,6 +102,33 @@ describe('email templates', () => {
 
     expect(email.text).toContain(
       'Manage booking: https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token',
+    );
+    expect(email.html).toContain(
+      '<a href="https://availo.example.com/api/booking-pages/default-admin/event-types/intro-call/availability/bookings/call-1?token=cancel-token">Manage booking</a>',
+    );
+  });
+
+  it('escapes public booking action links in HTML emails', () => {
+    const email = buildCallRequestedEmail(
+      {
+        callRequestId: 'call&1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2026-05-15T07:00:00.000Z',
+        publicBooking: {
+          hostSlug: 'host & admin',
+          eventTypeSlug: 'intro/call',
+          cancellationToken: 'cancel&token',
+        },
+      },
+      'https://availo.example.com/api',
+    );
+
+    expect(email.text).toContain(
+      'https://availo.example.com/api/booking-pages/host%20%26%20admin/event-types/intro%2Fcall/availability/bookings/call%261?token=cancel%26token',
+    );
+    expect(email.html).toContain(
+      'https://availo.example.com/api/booking-pages/host%20%26%20admin/event-types/intro%2Fcall/availability/bookings/call%261?token=cancel%26token',
     );
   });
 

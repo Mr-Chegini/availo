@@ -11,6 +11,7 @@ export class ConsoleEmailSender implements EmailSender {
       to: message.to,
       subject: message.subject,
       body: message.text,
+      htmlBody: message.html,
       metadata: message.metadata,
     });
   }
