@@ -28,10 +28,15 @@ export interface CancelCalendarEventInput {
   providerEventId: string;
 }
 
+export interface UpdateCalendarEventInput extends CreateCalendarEventInput {
+  providerEventId: string;
+}
+
 export interface CalendarProvider {
   getBusySlots(input: GetBusySlotsInput): Promise<CalendarBusySlot[]>;
   createEvent(
     input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult>;
+  updateEvent(input: UpdateCalendarEventInput): Promise<void>;
   cancelEvent(input: CancelCalendarEventInput): Promise<void>;
 }

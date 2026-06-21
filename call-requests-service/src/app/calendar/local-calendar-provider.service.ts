@@ -6,6 +6,7 @@ import type {
   CreateCalendarEventInput,
   CreateCalendarEventResult,
   GetBusySlotsInput,
+  UpdateCalendarEventInput,
 } from './calendar-provider';
 
 @Injectable()
@@ -18,6 +19,10 @@ export class LocalCalendarProvider implements CalendarProvider {
     _input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult> {
     return {};
+  }
+
+  async updateEvent(_input: UpdateCalendarEventInput): Promise<void> {
+    return;
   }
 
   async cancelEvent(_input: CancelCalendarEventInput): Promise<void> {

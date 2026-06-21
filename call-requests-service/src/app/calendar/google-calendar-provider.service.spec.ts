@@ -237,6 +237,83 @@ describe('GoogleCalendarProvider', () => {
     );
   });
 
+  it('updates a Google Calendar event', async () => {
+    vi.mocked(axios.patch).mockResolvedValueOnce({});
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+    );
+
+    await expect(
+      provider.updateEvent({
+        providerEventId: 'google-event-1',
+        title: 'Call with user@example.com',
+        startsAt: '2026-05-15T08:00:00.000Z',
+        endsAt: '2026-05-15T08:30:00.000Z',
+        attendeeEmail: 'user@example.com',
+        attendeePhoneNumber: '+90 555 111 22 33',
+        location: 'Zoom',
+      }),
+    ).resolves.toBeUndefined();
+    expect(axios.patch).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-1',
+      {
+        summary: 'Call with user@example.com',
+        start: {
+          dateTime: '2026-05-15T08:00:00.000Z',
+        },
+        end: {
+          dateTime: '2026-05-15T08:30:00.000Z',
+        },
+        attendees: [
+          {
+            email: 'user@example.com',
+          },
+        ],
+        description: 'Phone number: +90 555 111 22 33',
+        location: 'Zoom',
+      },
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+  });
+
+  it('skips event update when no active Google account is connected', async () => {
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([]),
+      } as unknown as never,
+      {
+        restore: vi.fn(),
+      } as unknown as never,
+    );
+
+    await expect(
+      provider.updateEvent({
+        providerEventId: 'google-event-1',
+        title: 'Call with user@example.com',
+        startsAt: '2026-05-15T08:00:00.000Z',
+        endsAt: '2026-05-15T08:30:00.000Z',
+        attendeeEmail: 'user@example.com',
+        attendeePhoneNumber: '+90 555 111 22 33',
+      }),
+    ).resolves.toBeUndefined();
+    expect(axios.patch).not.toHaveBeenCalled();
+  });
+
   it('cancels a Google Calendar event', async () => {
     vi.mocked(axios.delete).mockResolvedValueOnce({});
     const provider = new GoogleCalendarProvider(

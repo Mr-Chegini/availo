@@ -7,6 +7,7 @@ import type {
   CreateCalendarEventInput,
   CreateCalendarEventResult,
   GetBusySlotsInput,
+  UpdateCalendarEventInput,
 } from './calendar-provider';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import { CalendarTokenProtector } from './calendar-token-protector.service';
@@ -35,6 +36,21 @@ interface GoogleFreeBusyResponse {
 
 interface GoogleCreateEventResponse {
   id?: string;
+}
+
+interface GoogleCalendarEventInput {
+  summary: string;
+  start: {
+    dateTime: string;
+  };
+  end: {
+    dateTime: string;
+  };
+  attendees: Array<{
+    email: string;
+  }>;
+  description: string;
+  location?: string;
 }
 
 @Injectable()
@@ -89,44 +105,11 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return {};
     }
 
-    const eventInput: {
-      summary: string;
-      start: {
-        dateTime: string;
-      };
-      end: {
-        dateTime: string;
-      };
-      attendees: Array<{
-        email: string;
-      }>;
-      description: string;
-      location?: string;
-    } = {
-      summary: input.title,
-      start: {
-        dateTime: input.startsAt,
-      },
-      end: {
-        dateTime: input.endsAt,
-      },
-      attendees: [
-        {
-          email: input.attendeeEmail,
-        },
-      ],
-      description: `Phone number: ${input.attendeePhoneNumber}`,
-    };
-
-    if (input.location) {
-      eventInput.location = input.location;
-    }
-
     const response = await axios.post<GoogleCreateEventResponse>(
       `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
         connection.primaryCalendarId,
       )}/events`,
-      eventInput,
+      toGoogleCalendarEventInput(input),
       {
         headers: {
           Authorization: `Bearer ${connection.accessToken}`,
@@ -137,6 +120,26 @@ export class GoogleCalendarProvider implements CalendarProvider {
     return {
       providerEventId: response.data.id,
     };
+  }
+
+  async updateEvent(input: UpdateCalendarEventInput): Promise<void> {
+    const connection = await this.getConnectionForDefaultOwner();
+
+    if (!connection) {
+      return;
+    }
+
+    await axios.patch(
+      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+        connection.primaryCalendarId,
+      )}/events/${encodeURIComponent(input.providerEventId)}`,
+      toGoogleCalendarEventInput(input),
+      {
+        headers: {
+          Authorization: `Bearer ${connection.accessToken}`,
+        },
+      },
+    );
   }
 
   async cancelEvent(input: CancelCalendarEventInput): Promise<void> {
@@ -178,4 +181,30 @@ export class GoogleCalendarProvider implements CalendarProvider {
       primaryCalendarId: googleAccount.primaryCalendarId,
     };
   }
+}
+
+function toGoogleCalendarEventInput(
+  input: CreateCalendarEventInput,
+): GoogleCalendarEventInput {
+  const eventInput: GoogleCalendarEventInput = {
+    summary: input.title,
+    start: {
+      dateTime: input.startsAt,
+    },
+    end: {
+      dateTime: input.endsAt,
+    },
+    attendees: [
+      {
+        email: input.attendeeEmail,
+      },
+    ],
+    description: `Phone number: ${input.attendeePhoneNumber}`,
+  };
+
+  if (input.location) {
+    eventInput.location = input.location;
+  }
+
+  return eventInput;
 }

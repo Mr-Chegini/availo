@@ -550,15 +550,23 @@ export class CallRequestsService {
       throw new NotFoundException('Call request not found');
     }
 
-    if (callRequest.status !== CallRequestStatus.REQUESTED) {
-      throw new ConflictException('Only requested calls can be rescheduled');
-    }
-
     const scheduledAt = this.normalizeRescheduleInput(dto);
     const availabilityRules = getAvailabilityRules(eventType);
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
     await this.assertSlotAvailable(scheduledAt, callRequest.id);
+
+    if (callRequest.status === CallRequestStatus.SCHEDULED) {
+      await this.updateScheduledCallRequestCalendarEvent(
+        callRequest,
+        scheduledAt,
+        availabilityRules.durationMinutes,
+      );
+    } else if (callRequest.status !== CallRequestStatus.REQUESTED) {
+      throw new ConflictException(
+        'Only requested or scheduled calls can be rescheduled',
+      );
+    }
 
     callRequest.scheduledAt = scheduledAt;
 
@@ -573,6 +581,31 @@ export class CallRequestsService {
     }
 
     return this.toPublicBookingResponse(callRequest);
+  }
+
+  private async updateScheduledCallRequestCalendarEvent(
+    callRequest: CallRequestDocument,
+    scheduledAt: Date,
+    durationMinutes: number,
+  ): Promise<void> {
+    if (!callRequest.calendarProviderEventId) {
+      throw new ConflictException(
+        'Scheduled calls without calendar events cannot be rescheduled',
+      );
+    }
+
+    await this.calendarProvider.updateEvent({
+      ...this.toCalendarEventInput(
+        {
+          email: callRequest.email,
+          phoneNumber: callRequest.phoneNumber,
+          scheduledAt,
+          meetingLocation: callRequest.meetingLocation,
+        },
+        durationMinutes,
+      ),
+      providerEventId: callRequest.calendarProviderEventId,
+    });
   }
 
   private async cancelCallRequest(

@@ -46,6 +46,7 @@ describe('CallRequestsService', () => {
   let calendarProvider: {
     getBusySlots: ReturnType<typeof vi.fn>;
     createEvent: ReturnType<typeof vi.fn>;
+    updateEvent: ReturnType<typeof vi.fn>;
     cancelEvent: ReturnType<typeof vi.fn>;
   };
   let eventTypesService: {
@@ -67,6 +68,7 @@ describe('CallRequestsService', () => {
     calendarProvider = {
       getBusySlots: vi.fn().mockResolvedValue([]),
       createEvent: vi.fn().mockResolvedValue({}),
+      updateEvent: vi.fn().mockResolvedValue(undefined),
       cancelEvent: vi.fn().mockResolvedValue(undefined),
     };
     eventTypesService = {
@@ -545,10 +547,76 @@ describe('CallRequestsService', () => {
       },
     });
     expect(callRequest.scheduledAt).toEqual(scheduledAt);
+    expect(calendarProvider.updateEvent).not.toHaveBeenCalled();
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).not.toHaveBeenCalled();
     expect(response.scheduledAt).toBe('2030-01-01T09:00:00.000Z');
     expect(response.cancellationToken).toBe('cancel-token');
+  });
+
+  it('reschedules scheduled calls and updates the calendar event', async () => {
+    const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      calendarProviderEventId: 'google-event-1',
+      meetingLocation: 'Zoom',
+    });
+    mockFindOne(callRequest);
+    callRequestModel.exists.mockResolvedValue(null);
+
+    const response = await service.rescheduleWithToken(
+      'call-1',
+      'cancel-token',
+      {
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+      mockEventTypeRules({
+        durationMinutes: 45,
+        availabilityTimezone: 'UTC',
+        workdayStartHour: 9,
+        workdayEndHour: 17,
+        slotIntervalMinutes: 30,
+      }) as never,
+    );
+
+    expect(calendarProvider.updateEvent).toHaveBeenCalledWith({
+      providerEventId: 'google-event-1',
+      title: 'Call with user@example.com',
+      startsAt: '2030-01-01T09:00:00.000Z',
+      endsAt: '2030-01-01T09:45:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+      location: 'Zoom',
+    });
+    expect(callRequest.scheduledAt).toEqual(scheduledAt);
+    expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(response.status).toBe(CallRequestStatus.SCHEDULED);
+    expect(response.scheduledAt).toBe('2030-01-01T09:00:00.000Z');
+  });
+
+  it('throws when rescheduling a scheduled call without a calendar event', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+    mockFindOne(callRequest);
+    callRequestModel.exists.mockResolvedValue(null);
+
+    await expect(
+      service.rescheduleWithToken(
+        'call-1',
+        'cancel-token',
+        {
+          scheduledAt: '2030-01-01T09:00:00.000Z',
+        },
+        mockEventTypeRules({
+          availabilityTimezone: 'UTC',
+          workdayStartHour: 9,
+          workdayEndHour: 17,
+          slotIntervalMinutes: 30,
+        }) as never,
+      ),
+    ).rejects.toThrow(
+      'Scheduled calls without calendar events cannot be rescheduled',
+    );
+    expect(calendarProvider.updateEvent).not.toHaveBeenCalled();
+    expect(callRequest.save).not.toHaveBeenCalled();
   });
 
   it('throws when rescheduling with a token that does not match a call request', async () => {
@@ -566,8 +634,8 @@ describe('CallRequestsService', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('throws when rescheduling a non-requested call', async () => {
-    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
+  it('throws when rescheduling a non-requested or scheduled call', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.CANCELED);
     mockFindOne(callRequest);
 
     await expect(
@@ -580,7 +648,6 @@ describe('CallRequestsService', () => {
         mockEventTypeRules() as never,
       ),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(callRequestModel.exists).not.toHaveBeenCalled();
     expect(callRequest.save).not.toHaveBeenCalled();
   });
 
