@@ -45,6 +45,7 @@ import {
 } from '../calendar/calendar-provider';
 import { EventTypesService } from '../hosts/event-types.service';
 import { createStructuredLog } from '../logging/structured-log';
+import { MetricsService } from '../metrics/metrics.service';
 
 interface AvailabilityRules {
   timezone: string;
@@ -83,6 +84,7 @@ export class CallRequestsService {
     @Inject(CALENDAR_PROVIDER)
     private readonly calendarProvider: CalendarProvider,
     private readonly eventTypesService: EventTypesService,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
@@ -183,6 +185,8 @@ export class CallRequestsService {
       event,
     );
 
+    this.metricsService.increment('booking.requested');
+
     this.logger.log(
       createStructuredLog('call_request.requested', {
         callRequestId: callRequest.id,
@@ -225,6 +229,8 @@ export class CallRequestsService {
       });
 
       await this.publishCallApproved(callRequest);
+
+      this.metricsService.increment('booking.scheduled');
 
       this.logger.log(
         createStructuredLog('call_request.scheduled', {
@@ -509,6 +515,8 @@ export class CallRequestsService {
 
     await this.publishCallApproved(callRequest);
 
+    this.metricsService.increment('booking.approved');
+
     this.logger.log(
       createStructuredLog('call_request.approved', {
         callRequestId: callRequest.id,
@@ -544,6 +552,8 @@ export class CallRequestsService {
       RabbitmqRoutingKey.CALL_REJECTED,
       event,
     );
+
+    this.metricsService.increment('booking.rejected');
 
     this.logger.log(
       createStructuredLog('call_request.rejected', {
@@ -663,6 +673,8 @@ export class CallRequestsService {
       throw error;
     }
 
+    this.metricsService.increment('booking.rescheduled');
+
     this.logger.log(
       createStructuredLog('call_request.rescheduled', {
         callRequestId: callRequest.id,
@@ -758,6 +770,8 @@ export class CallRequestsService {
       RabbitmqRoutingKey.CALL_CANCELED,
       event,
     );
+
+    this.metricsService.increment('booking.canceled');
 
     this.logger.log(
       createStructuredLog('call_request.canceled', {

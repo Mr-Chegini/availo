@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import { RabbitmqExchange } from '@org/shared-types';
 import { createStructuredLog } from '../logging/structured-log';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class RabbitmqPublisherService
@@ -17,7 +18,10 @@ export class RabbitmqPublisherService
   private connection?: amqp.ChannelModel;
   private channel?: amqp.Channel;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly metricsService: MetricsService,
+  ) {}
 
   async onModuleInit() {
     const rabbitmqUrl = this.configService.getOrThrow<string>('RABBITMQ_URL');
@@ -45,6 +49,7 @@ export class RabbitmqPublisherService
     payload: TPayload,
   ): Promise<void> {
     if (!this.channel) {
+      this.metricsService.increment('rabbitmq.publish_failed');
       throw new Error('RabbitMQ channel is not initialized');
     }
 
@@ -53,15 +58,22 @@ export class RabbitmqPublisherService
       RabbitmqExchange.CALLS,
     );
 
-    const accepted = this.channel.publish(
-      exchange,
-      routingKey,
-      Buffer.from(JSON.stringify(payload)),
-      {
-        contentType: 'application/json',
-        persistent: true,
-      },
-    );
+    let accepted: boolean;
+
+    try {
+      accepted = this.channel.publish(
+        exchange,
+        routingKey,
+        Buffer.from(JSON.stringify(payload)),
+        {
+          contentType: 'application/json',
+          persistent: true,
+        },
+      );
+    } catch (error) {
+      this.metricsService.increment('rabbitmq.publish_failed');
+      throw error;
+    }
 
     this.logger.log(
       createStructuredLog('rabbitmq.message_published', {

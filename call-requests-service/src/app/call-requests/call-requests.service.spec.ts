@@ -11,6 +11,7 @@ import { CallRequestsService } from './call-requests.service';
 import type { CallRequestDocument } from './call-request.schema';
 import type { CalendarProvider } from '../calendar/calendar-provider';
 import type { EventTypesService } from '../hosts/event-types.service';
+import type { MetricsService } from '../metrics/metrics.service';
 
 const SCHEDULED_AT = new Date('2026-05-15T07:00:00.000Z');
 const CREATED_AT = new Date('2026-05-10T07:00:00.000Z');
@@ -54,6 +55,9 @@ describe('CallRequestsService', () => {
   let eventTypesService: {
     findDefaultActiveEventType: ReturnType<typeof vi.fn>;
   };
+  let metricsService: {
+    increment: ReturnType<typeof vi.fn>;
+  };
   let service: CallRequestsService;
 
   beforeEach(() => {
@@ -76,12 +80,16 @@ describe('CallRequestsService', () => {
     eventTypesService = {
       findDefaultActiveEventType: vi.fn().mockResolvedValue(null),
     };
+    metricsService = {
+      increment: vi.fn(),
+    };
 
     service = new CallRequestsService(
       callRequestModel as unknown as Model<CallRequestDocument>,
       rabbitmqPublisherService as unknown as RabbitmqPublisherService,
       calendarProvider as unknown as CalendarProvider,
       eventTypesService as unknown as EventTypesService,
+      metricsService as unknown as MetricsService,
     );
   });
 
@@ -195,6 +203,7 @@ describe('CallRequestsService', () => {
         },
       }),
     );
+    expect(metricsService.increment).toHaveBeenCalledWith('booking.requested');
     expect(response.status).toBe(CallRequestStatus.REQUESTED);
     expect(response.cancellationToken).toBe('cancel-token');
     expect(response.meetingLocation).toBe('Google Meet');
@@ -266,6 +275,7 @@ describe('CallRequestsService', () => {
         },
       },
     );
+    expect(metricsService.increment).toHaveBeenCalledWith('booking.scheduled');
     expect(response.status).toBe(CallRequestStatus.SCHEDULED);
     expect(response.cancellationToken).toBe('cancel-token');
   });
@@ -425,6 +435,7 @@ describe('CallRequestsService', () => {
         scheduledAt: '2026-05-15T07:00:00.000Z',
       },
     );
+    expect(metricsService.increment).toHaveBeenCalledWith('booking.approved');
     expect(response.status).toBe(CallRequestStatus.SCHEDULED);
   });
 
@@ -460,6 +471,7 @@ describe('CallRequestsService', () => {
         email: 'user@example.com',
       },
     );
+    expect(metricsService.increment).toHaveBeenCalledWith('booking.rejected');
     expect(response.status).toBe(CallRequestStatus.REJECTED);
   });
 
@@ -472,6 +484,7 @@ describe('CallRequestsService', () => {
     expect(callRequest.status).toBe(CallRequestStatus.CALLED);
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).not.toHaveBeenCalled();
+    expect(metricsService.increment).not.toHaveBeenCalled();
     expect(response.status).toBe(CallRequestStatus.CALLED);
   });
 
@@ -497,6 +510,7 @@ describe('CallRequestsService', () => {
         scheduledAt: '2026-05-15T07:00:00.000Z',
       },
     );
+    expect(metricsService.increment).toHaveBeenCalledWith('booking.canceled');
     expect(response.status).toBe(CallRequestStatus.CANCELED);
   });
 
@@ -611,6 +625,9 @@ describe('CallRequestsService', () => {
     expect(calendarProvider.updateEvent).not.toHaveBeenCalled();
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).not.toHaveBeenCalled();
+    expect(metricsService.increment).toHaveBeenCalledWith(
+      'booking.rescheduled',
+    );
     expect(response.scheduledAt).toBe('2030-01-01T09:00:00.000Z');
     expect(response.cancellationToken).toBe('cancel-token');
   });
@@ -650,6 +667,9 @@ describe('CallRequestsService', () => {
     });
     expect(callRequest.scheduledAt).toEqual(scheduledAt);
     expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(metricsService.increment).toHaveBeenCalledWith(
+      'booking.rescheduled',
+    );
     expect(response.status).toBe(CallRequestStatus.SCHEDULED);
     expect(response.scheduledAt).toBe('2030-01-01T09:00:00.000Z');
   });

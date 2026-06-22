@@ -9,6 +9,7 @@ import { CalendarModule } from '../calendar/calendar.module';
 import { HostsModule } from '../hosts/hosts.module';
 import { AuthModule } from '../auth/auth.module';
 import { RateLimitModule } from '../rate-limit/rate-limit.module';
+import { MetricsModule } from '../metrics/metrics.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RateLimitModule } from '../rate-limit/rate-limit.module';
     HostsModule,
     AuthModule,
     RateLimitModule,
+    MetricsModule,
   ],
   controllers: [CallRequestsController, PublicBookingAvailabilityController],
   providers: [CallRequestsService],
