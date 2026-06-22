@@ -17,6 +17,22 @@ export interface AvailabilitySlot {
   available: boolean;
 }
 
+export interface PublicBookingConfirmation {
+  bookingId: string;
+  email: string;
+  phoneNumber: string;
+  scheduledAt: string;
+  status: string;
+  cancellationToken: string;
+  meetingLocation?: string;
+  eventType: {
+    slug: string;
+    title: string;
+    durationMinutes: number;
+    meetingLocation?: string;
+  };
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const contentType = response.headers.get('content-type');
@@ -120,4 +136,82 @@ export async function updateAdminNote(
   );
 
   return parseJsonResponse<CallRequest>(response);
+}
+
+function buildPublicBookingBasePath(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  bookingId: string;
+}): string {
+  const path = [
+    'booking-pages',
+    input.hostSlug,
+    'event-types',
+    input.eventTypeSlug,
+    'availability',
+    'bookings',
+    input.bookingId,
+  ]
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return `${API_BASE_URL}/${path}`;
+}
+
+function buildPublicBookingUrl(
+  input: {
+    hostSlug: string;
+    eventTypeSlug: string;
+    bookingId: string;
+    token: string;
+  },
+  action?: 'cancel' | 'reschedule',
+): string {
+  const basePath = buildPublicBookingBasePath(input);
+  const actionPath = action ? `/${action}` : '';
+  const tokenQuery = `token=${encodeURIComponent(input.token)}`;
+
+  return `${basePath}${actionPath}?${tokenQuery}`;
+}
+
+export async function getPublicBooking(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  bookingId: string;
+  token: string;
+}): Promise<PublicBookingConfirmation> {
+  const response = await fetch(buildPublicBookingUrl(input));
+
+  return parseJsonResponse<PublicBookingConfirmation>(response);
+}
+
+export async function cancelPublicBooking(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  bookingId: string;
+  token: string;
+}): Promise<CallRequest> {
+  const response = await fetch(buildPublicBookingUrl(input, 'cancel'), {
+    method: 'POST',
+  });
+
+  return parseJsonResponse<CallRequest>(response);
+}
+
+export async function reschedulePublicBooking(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  bookingId: string;
+  token: string;
+  scheduledAt: string;
+}): Promise<PublicBookingConfirmation> {
+  const response = await fetch(buildPublicBookingUrl(input, 'reschedule'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ scheduledAt: input.scheduledAt }),
+  });
+
+  return parseJsonResponse<PublicBookingConfirmation>(response);
 }

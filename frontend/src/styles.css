@@ -5,7 +5,12 @@
 body {
   margin: 0;
   font-family:
-    Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    Inter,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   background: #f6f7fb;
   color: #1f2937;
 }
@@ -258,4 +263,58 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   margin: 14px 0;
+}
+
+.booking-summary {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.booking-summary-header {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.booking-title {
+  margin: 0;
+  font-size: 22px;
+  color: #111827;
+}
+
+.booking-subtitle {
+  margin: 4px 0 0;
+  color: #6b7280;
+}
+
+.booking-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+
+.booking-detail-grid dt {
+  margin-bottom: 4px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.booking-detail-grid dd {
+  margin: 0;
+  color: #111827;
+  font-weight: 600;
+}
+
+.reschedule-form {
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  margin-top: 20px;
 }
