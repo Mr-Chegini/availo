@@ -39,6 +39,10 @@ import { EmailModule } from './email/email.module';
         RABBITMQ_DAILY_DIGEST_QUEUE: Joi.string().default(
           'communication.daily-digest',
         ),
+        RABBITMQ_EMAIL_DEAD_LETTER_QUEUE: Joi.string().default(
+          'communication.email-dead-letter',
+        ),
+        EMAIL_MAX_RETRY_ATTEMPTS: Joi.number().integer().min(0).default(3),
 
         ADMIN_EMAIL: Joi.string().email().required(),
         PUBLIC_BOOKING_BASE_URL: Joi.string()

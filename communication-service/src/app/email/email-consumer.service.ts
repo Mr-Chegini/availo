@@ -36,6 +36,11 @@ import { ProcessedEmailEventsService } from './processed-email-events.service';
 export class EmailConsumerService
   implements OnModuleInit, OnApplicationShutdown
 {
+  private static readonly retryCountHeader = 'x-email-retry-count';
+  private static readonly originalRoutingKeyHeader =
+    'x-email-original-routing-key';
+  private static readonly lastErrorHeader = 'x-email-last-error';
+
   private readonly logger = new Logger(EmailConsumerService.name);
   private connection?: amqp.ChannelModel;
   private channel?: amqp.Channel;
@@ -90,6 +95,10 @@ export class EmailConsumerService
       'RABBITMQ_DAILY_DIGEST_QUEUE',
       'communication.daily-digest',
     );
+
+    await this.channel.assertQueue(this.getEmailDeadLetterQueue(), {
+      durable: true,
+    });
 
     await this.bindAndConsumeQueue<CallRequestedEvent>(
       callRequestedQueue,
@@ -193,11 +202,125 @@ export class EmailConsumerService
           `Failed to process message from queue ${queue}`,
           error,
         );
-        this.channel?.nack(message, false, false);
+        this.handleFailedMessage(queue, routingKey, message, error);
       }
     });
 
     this.logger.log(`Listening for ${routingKey} on queue ${queue}`);
+  }
+
+  private handleFailedMessage(
+    queue: string,
+    routingKey: RabbitmqRoutingKey,
+    message: amqp.ConsumeMessage,
+    error: unknown,
+  ): void {
+    const retryCount = this.getMessageRetryCount(message);
+    const maxRetryAttempts = this.getMaxEmailRetryAttempts();
+
+    if (retryCount < maxRetryAttempts) {
+      this.retryMessage(queue, routingKey, message, retryCount, error);
+      this.channel?.ack(message);
+      return;
+    }
+
+    this.deadLetterMessage(queue, routingKey, message, retryCount, error);
+    this.channel?.ack(message);
+  }
+
+  private retryMessage(
+    queue: string,
+    routingKey: RabbitmqRoutingKey,
+    message: amqp.ConsumeMessage,
+    retryCount: number,
+    error: unknown,
+  ): void {
+    const nextRetryCount = retryCount + 1;
+
+    this.channel?.sendToQueue(queue, message.content, {
+      persistent: true,
+      contentType: message.properties.contentType,
+      headers: {
+        ...message.properties.headers,
+        [EmailConsumerService.retryCountHeader]: nextRetryCount,
+        [EmailConsumerService.originalRoutingKeyHeader]: routingKey,
+        [EmailConsumerService.lastErrorHeader]: this.getErrorMessage(error),
+      },
+    });
+
+    this.logger.warn(
+      `Retried email event from queue ${queue}; attempt ${nextRetryCount}/${this.getMaxEmailRetryAttempts()}`,
+    );
+  }
+
+  private deadLetterMessage(
+    queue: string,
+    routingKey: RabbitmqRoutingKey,
+    message: amqp.ConsumeMessage,
+    retryCount: number,
+    error: unknown,
+  ): void {
+    const deadLetterQueue = this.getEmailDeadLetterQueue();
+    const failureEnvelope = {
+      queue,
+      routingKey,
+      failedAt: new Date().toISOString(),
+      attempts: retryCount,
+      error: this.getErrorMessage(error),
+      payload: message.content.toString(),
+    };
+
+    this.channel?.sendToQueue(
+      deadLetterQueue,
+      Buffer.from(JSON.stringify(failureEnvelope)),
+      {
+        persistent: true,
+        contentType: 'application/json',
+        headers: {
+          ...message.properties.headers,
+          [EmailConsumerService.retryCountHeader]: retryCount,
+          [EmailConsumerService.originalRoutingKeyHeader]: routingKey,
+          [EmailConsumerService.lastErrorHeader]: this.getErrorMessage(error),
+        },
+      },
+    );
+
+    this.logger.error(
+      `Dead-lettered email event from queue ${queue} after ${retryCount} attempts`,
+    );
+  }
+
+  private getMessageRetryCount(message: amqp.ConsumeMessage): number {
+    const retryCount =
+      message.properties.headers?.[EmailConsumerService.retryCountHeader];
+    const parsedRetryCount = Number(retryCount ?? 0);
+
+    return Number.isFinite(parsedRetryCount) && parsedRetryCount > 0
+      ? parsedRetryCount
+      : 0;
+  }
+
+  private getMaxEmailRetryAttempts(): number {
+    const configuredAttempts = this.configService.get<number>(
+      'EMAIL_MAX_RETRY_ATTEMPTS',
+      3,
+    );
+    const parsedAttempts = Number(configuredAttempts);
+
+    return Number.isFinite(parsedAttempts) && parsedAttempts > 0
+      ? Math.floor(parsedAttempts)
+      : 0;
+  }
+
+  private getEmailDeadLetterQueue(): string {
+    return this.configService.get<string>(
+      'RABBITMQ_EMAIL_DEAD_LETTER_QUEUE',
+      'communication.email-dead-letter',
+    );
+  }
+
+  private getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async sendCallApprovedEmail(
