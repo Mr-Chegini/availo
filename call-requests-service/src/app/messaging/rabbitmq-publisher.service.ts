@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as amqp from 'amqplib';
 import { RabbitmqExchange } from '@org/shared-types';
+import { createStructuredLog } from '../logging/structured-log';
 
 @Injectable()
 export class RabbitmqPublisherService
@@ -32,7 +33,11 @@ export class RabbitmqPublisherService
       durable: true,
     });
 
-    this.logger.log(`Connected to RabbitMQ exchange: ${exchange}`);
+    this.logger.log(
+      createStructuredLog('rabbitmq.connected', {
+        exchange,
+      }),
+    );
   }
 
   async publish<TPayload>(
@@ -48,7 +53,7 @@ export class RabbitmqPublisherService
       RabbitmqExchange.CALLS,
     );
 
-    this.channel.publish(
+    const accepted = this.channel.publish(
       exchange,
       routingKey,
       Buffer.from(JSON.stringify(payload)),
@@ -56,6 +61,14 @@ export class RabbitmqPublisherService
         contentType: 'application/json',
         persistent: true,
       },
+    );
+
+    this.logger.log(
+      createStructuredLog('rabbitmq.message_published', {
+        exchange,
+        routingKey,
+        accepted,
+      }),
     );
   }
 

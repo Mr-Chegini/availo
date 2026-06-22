@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -43,6 +44,7 @@ import {
   type CalendarProvider,
 } from '../calendar/calendar-provider';
 import { EventTypesService } from '../hosts/event-types.service';
+import { createStructuredLog } from '../logging/structured-log';
 
 interface AvailabilityRules {
   timezone: string;
@@ -72,6 +74,8 @@ export interface RescheduleCallRequestDto {
 
 @Injectable()
 export class CallRequestsService {
+  private readonly logger = new Logger(CallRequestsService.name);
+
   constructor(
     @InjectModel(CallRequest.name)
     private readonly callRequestModel: Model<CallRequestDocument>,
@@ -179,6 +183,14 @@ export class CallRequestsService {
       event,
     );
 
+    this.logger.log(
+      createStructuredLog('call_request.requested', {
+        callRequestId: callRequest.id,
+        scheduledAt: callRequest.scheduledAt.toISOString(),
+        hasPublicBooking: Boolean(publicBooking),
+      }),
+    );
+
     return callRequest;
   }
 
@@ -213,6 +225,16 @@ export class CallRequestsService {
       });
 
       await this.publishCallApproved(callRequest);
+
+      this.logger.log(
+        createStructuredLog('call_request.scheduled', {
+          callRequestId: callRequest.id,
+          scheduledAt: callRequest.scheduledAt.toISOString(),
+          autoConfirmed: true,
+          hasPublicBooking: Boolean(toPublicBookingEventContext(callRequest)),
+          hasCalendarEvent: Boolean(callRequest.calendarProviderEventId),
+        }),
+      );
 
       return callRequest;
     } catch (error) {
@@ -487,6 +509,15 @@ export class CallRequestsService {
 
     await this.publishCallApproved(callRequest);
 
+    this.logger.log(
+      createStructuredLog('call_request.approved', {
+        callRequestId: callRequest.id,
+        scheduledAt: callRequest.scheduledAt.toISOString(),
+        hasPublicBooking: Boolean(toPublicBookingEventContext(callRequest)),
+        hasCalendarEvent: Boolean(callRequest.calendarProviderEventId),
+      }),
+    );
+
     return this.toResponse(callRequest);
   }
 
@@ -514,6 +545,12 @@ export class CallRequestsService {
       event,
     );
 
+    this.logger.log(
+      createStructuredLog('call_request.rejected', {
+        callRequestId: callRequest.id,
+      }),
+    );
+
     return this.toResponse(callRequest);
   }
 
@@ -532,6 +569,12 @@ export class CallRequestsService {
 
     callRequest.status = CallRequestStatus.CALLED;
     await callRequest.save();
+
+    this.logger.log(
+      createStructuredLog('call_request.called', {
+        callRequestId: callRequest.id,
+      }),
+    );
 
     return this.toResponse(callRequest);
   }
@@ -620,6 +663,15 @@ export class CallRequestsService {
       throw error;
     }
 
+    this.logger.log(
+      createStructuredLog('call_request.rescheduled', {
+        callRequestId: callRequest.id,
+        scheduledAt: callRequest.scheduledAt.toISOString(),
+        status: callRequest.status,
+        hasCalendarEvent: Boolean(callRequest.calendarProviderEventId),
+      }),
+    );
+
     return this.toPublicBookingResponse(callRequest);
   }
 
@@ -684,6 +736,8 @@ export class CallRequestsService {
       throw new ConflictException('Only scheduled calls can be canceled');
     }
 
+    const hadCalendarEvent = Boolean(callRequest.calendarProviderEventId);
+
     if (callRequest.calendarProviderEventId) {
       await this.calendarProvider.cancelEvent({
         providerEventId: callRequest.calendarProviderEventId,
@@ -703,6 +757,13 @@ export class CallRequestsService {
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_CANCELED,
       event,
+    );
+
+    this.logger.log(
+      createStructuredLog('call_request.canceled', {
+        callRequestId: callRequest.id,
+        hadCalendarEvent,
+      }),
     );
 
     return this.toResponse(callRequest);
