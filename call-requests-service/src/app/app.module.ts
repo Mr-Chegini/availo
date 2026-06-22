@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import * as Joi from 'joi';
 import { CallRequestsModule } from './call-requests/call-requests.module';
+import { HealthModule } from './health/health.module';
 import { HostsModule } from './hosts/hosts.module';
 
 @Module({
@@ -67,6 +68,7 @@ import { HostsModule } from './hosts/hosts.module';
 
     CallRequestsModule,
     HostsModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

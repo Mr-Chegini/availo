@@ -59,8 +59,18 @@ export class RabbitmqPublisherService
     );
   }
 
+  isReady(): boolean {
+    return Boolean(this.connection && this.channel);
+  }
+
   async onApplicationShutdown() {
-    await this.channel?.close();
-    await this.connection?.close();
+    const channel = this.channel;
+    const connection = this.connection;
+
+    this.channel = undefined;
+    this.connection = undefined;
+
+    await channel?.close();
+    await connection?.close();
   }
 }
