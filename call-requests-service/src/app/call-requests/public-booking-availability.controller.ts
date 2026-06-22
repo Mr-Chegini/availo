@@ -9,6 +9,14 @@ import { EventTypesService } from '../hosts/event-types.service';
 import { HostAccountsService } from '../hosts/host-accounts.service';
 import { PublicBookingRateLimit } from '../rate-limit/public-booking-rate-limit.decorator';
 import { CallRequestsService } from './call-requests.service';
+import {
+  PublicBookingCreateBodyPipe,
+  PublicBookingDatePipe,
+  PublicBookingIdPipe,
+  PublicBookingRescheduleBodyPipe,
+  PublicBookingSlugPipe,
+  PublicBookingTokenPipe,
+} from './public-booking-validation.pipe';
 
 interface PublicBookingConfirmationDto {
   bookingId: string;
@@ -41,9 +49,10 @@ export class PublicBookingAvailabilityController {
   @Get()
   @PublicBookingRateLimit('availability')
   async getAvailability(
-    @Param('hostSlug') hostSlug: string,
-    @Param('eventTypeSlug') eventTypeSlug: string,
-    @Query('date') date: string,
+    @Param('hostSlug', new PublicBookingSlugPipe('hostSlug')) hostSlug: string,
+    @Param('eventTypeSlug', new PublicBookingSlugPipe('eventTypeSlug'))
+    eventTypeSlug: string,
+    @Query('date', PublicBookingDatePipe) date: string,
   ) {
     const host = await this.hostAccountsService.getBySlug(hostSlug);
     const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
@@ -60,9 +69,10 @@ export class PublicBookingAvailabilityController {
   @Post('bookings')
   @PublicBookingRateLimit('create')
   async createBooking(
-    @Param('hostSlug') hostSlug: string,
-    @Param('eventTypeSlug') eventTypeSlug: string,
-    @Body() dto: CreateCallRequestDto,
+    @Param('hostSlug', new PublicBookingSlugPipe('hostSlug')) hostSlug: string,
+    @Param('eventTypeSlug', new PublicBookingSlugPipe('eventTypeSlug'))
+    eventTypeSlug: string,
+    @Body(PublicBookingCreateBodyPipe) dto: CreateCallRequestDto,
   ): Promise<PublicBookingConfirmationDto> {
     const host = await this.hostAccountsService.getBySlug(hostSlug);
     const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
@@ -81,10 +91,11 @@ export class PublicBookingAvailabilityController {
   @Get('bookings/:bookingId')
   @PublicBookingRateLimit('manage')
   async getBooking(
-    @Param('hostSlug') hostSlug: string,
-    @Param('eventTypeSlug') eventTypeSlug: string,
-    @Param('bookingId') bookingId: string,
-    @Query('token') cancellationToken: string,
+    @Param('hostSlug', new PublicBookingSlugPipe('hostSlug')) hostSlug: string,
+    @Param('eventTypeSlug', new PublicBookingSlugPipe('eventTypeSlug'))
+    eventTypeSlug: string,
+    @Param('bookingId', PublicBookingIdPipe) bookingId: string,
+    @Query('token', PublicBookingTokenPipe) cancellationToken: string,
   ): Promise<PublicBookingConfirmationDto> {
     const host = await this.hostAccountsService.getBySlug(hostSlug);
     const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
@@ -103,10 +114,11 @@ export class PublicBookingAvailabilityController {
   @Post('bookings/:bookingId/cancel')
   @PublicBookingRateLimit('manage')
   async cancelBooking(
-    @Param('hostSlug') hostSlug: string,
-    @Param('eventTypeSlug') eventTypeSlug: string,
-    @Param('bookingId') bookingId: string,
-    @Query('token') cancellationToken: string,
+    @Param('hostSlug', new PublicBookingSlugPipe('hostSlug')) hostSlug: string,
+    @Param('eventTypeSlug', new PublicBookingSlugPipe('eventTypeSlug'))
+    eventTypeSlug: string,
+    @Param('bookingId', PublicBookingIdPipe) bookingId: string,
+    @Query('token', PublicBookingTokenPipe) cancellationToken: string,
   ) {
     const host = await this.hostAccountsService.getBySlug(hostSlug);
     const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
@@ -124,11 +136,12 @@ export class PublicBookingAvailabilityController {
   @Post('bookings/:bookingId/reschedule')
   @PublicBookingRateLimit('manage')
   async rescheduleBooking(
-    @Param('hostSlug') hostSlug: string,
-    @Param('eventTypeSlug') eventTypeSlug: string,
-    @Param('bookingId') bookingId: string,
-    @Query('token') cancellationToken: string,
-    @Body() dto: PublicBookingRescheduleDto,
+    @Param('hostSlug', new PublicBookingSlugPipe('hostSlug')) hostSlug: string,
+    @Param('eventTypeSlug', new PublicBookingSlugPipe('eventTypeSlug'))
+    eventTypeSlug: string,
+    @Param('bookingId', PublicBookingIdPipe) bookingId: string,
+    @Query('token', PublicBookingTokenPipe) cancellationToken: string,
+    @Body(PublicBookingRescheduleBodyPipe) dto: PublicBookingRescheduleDto,
   ): Promise<PublicBookingConfirmationDto> {
     const host = await this.hostAccountsService.getBySlug(hostSlug);
     const eventType = await this.eventTypesService.getActiveByHostIdAndSlug(
