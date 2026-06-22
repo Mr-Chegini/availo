@@ -7,6 +7,7 @@ import type { CallRequestPublicBookingResponse } from './call-requests.service';
 import type { EventTypeDocument } from '../hosts/event-type.schema';
 import { EventTypesService } from '../hosts/event-types.service';
 import { HostAccountsService } from '../hosts/host-accounts.service';
+import { PublicBookingRateLimit } from '../rate-limit/public-booking-rate-limit.decorator';
 import { CallRequestsService } from './call-requests.service';
 
 interface PublicBookingConfirmationDto {
@@ -38,6 +39,7 @@ export class PublicBookingAvailabilityController {
   ) {}
 
   @Get()
+  @PublicBookingRateLimit('availability')
   async getAvailability(
     @Param('hostSlug') hostSlug: string,
     @Param('eventTypeSlug') eventTypeSlug: string,
@@ -56,6 +58,7 @@ export class PublicBookingAvailabilityController {
   }
 
   @Post('bookings')
+  @PublicBookingRateLimit('create')
   async createBooking(
     @Param('hostSlug') hostSlug: string,
     @Param('eventTypeSlug') eventTypeSlug: string,
@@ -76,6 +79,7 @@ export class PublicBookingAvailabilityController {
   }
 
   @Get('bookings/:bookingId')
+  @PublicBookingRateLimit('manage')
   async getBooking(
     @Param('hostSlug') hostSlug: string,
     @Param('eventTypeSlug') eventTypeSlug: string,
@@ -97,6 +101,7 @@ export class PublicBookingAvailabilityController {
   }
 
   @Post('bookings/:bookingId/cancel')
+  @PublicBookingRateLimit('manage')
   async cancelBooking(
     @Param('hostSlug') hostSlug: string,
     @Param('eventTypeSlug') eventTypeSlug: string,
@@ -117,6 +122,7 @@ export class PublicBookingAvailabilityController {
   }
 
   @Post('bookings/:bookingId/reschedule')
+  @PublicBookingRateLimit('manage')
   async rescheduleBooking(
     @Param('hostSlug') hostSlug: string,
     @Param('eventTypeSlug') eventTypeSlug: string,

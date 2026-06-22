@@ -7,9 +7,11 @@ import { HostAccount, HostAccountSchema } from './host-account.schema';
 import { HostAccountsService } from './host-accounts.service';
 import { PublicBookingPagesController } from './public-booking-pages.controller';
 import { PublicBookingPagesService } from './public-booking-pages.service';
+import { RateLimitModule } from '../rate-limit/rate-limit.module';
 
 @Module({
   imports: [
+    RateLimitModule,
     MongooseModule.forFeature([
       {
         name: HostAccount.name,

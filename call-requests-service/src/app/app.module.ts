@@ -34,6 +34,27 @@ import { HostsModule } from './hosts/hosts.module';
         GOOGLE_CALENDAR_CLIENT_SECRET: Joi.string().optional(),
         GOOGLE_CALENDAR_REDIRECT_URI: Joi.string().uri().optional(),
         GOOGLE_CALENDAR_STATE_SECRET: Joi.string().optional(),
+
+        PUBLIC_BOOKING_RATE_LIMIT_WINDOW_SECONDS: Joi.number()
+          .integer()
+          .min(1)
+          .default(60),
+        PUBLIC_BOOKING_RATE_LIMIT_LOOKUP_MAX: Joi.number()
+          .integer()
+          .min(1)
+          .default(120),
+        PUBLIC_BOOKING_RATE_LIMIT_AVAILABILITY_MAX: Joi.number()
+          .integer()
+          .min(1)
+          .default(120),
+        PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: Joi.number()
+          .integer()
+          .min(1)
+          .default(10),
+        PUBLIC_BOOKING_RATE_LIMIT_MANAGE_MAX: Joi.number()
+          .integer()
+          .min(1)
+          .default(30),
       }),
     }),
 

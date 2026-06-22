@@ -1,26 +1,33 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
+import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
 import type { EventTypesService } from '../hosts/event-types.service';
 import type { HostAccountsService } from '../hosts/host-accounts.service';
+import { PUBLIC_BOOKING_RATE_LIMIT_METADATA } from '../rate-limit/public-booking-rate-limit.decorator';
+import { PublicBookingRateLimitGuard } from '../rate-limit/public-booking-rate-limit.guard';
 import type { CallRequestsService } from './call-requests.service';
 import { PublicBookingAvailabilityController } from './public-booking-availability.controller';
 
 describe('PublicBookingAvailabilityController', () => {
   it.each([
-    'getAvailability',
-    'createBooking',
-    'getBooking',
-    'cancelBooking',
-    'rescheduleBooking',
-  ] as const)('keeps %s unauthenticated', (methodName) => {
-    const guards =
-      Reflect.getMetadata(
-        GUARDS_METADATA,
-        PublicBookingAvailabilityController.prototype[methodName],
-      ) ?? [];
+    ['getAvailability', 'availability'],
+    ['createBooking', 'create'],
+    ['getBooking', 'manage'],
+    ['cancelBooking', 'manage'],
+    ['rescheduleBooking', 'manage'],
+  ] as const)(
+    'keeps %s unauthenticated and rate limited',
+    (methodName, expectedRateLimitGroup) => {
+      const method = PublicBookingAvailabilityController.prototype[methodName];
+      const guards = Reflect.getMetadata(GUARDS_METADATA, method) ?? [];
 
-    expect(guards).toEqual([]);
-  });
+      expect(guards).toContain(PublicBookingRateLimitGuard);
+      expect(guards).not.toContain(AdminApiKeyGuard);
+      expect(
+        Reflect.getMetadata(PUBLIC_BOOKING_RATE_LIMIT_METADATA, method),
+      ).toBe(expectedRateLimitGroup);
+    },
+  );
 
   it('looks up availability by host slug, event type slug, and date', async () => {
     const host = {
