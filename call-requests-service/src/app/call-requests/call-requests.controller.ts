@@ -13,6 +13,10 @@ import type {
   CreateCallRequestDto,
 } from '@org/shared-types';
 import { CallRequestsService } from './call-requests.service';
+import {
+  CreateCallRequestBodyPipe,
+  UpdateAdminNoteBodyPipe,
+} from './call-request-validation.pipe';
 import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
 
 @Controller('call-requests')
@@ -20,7 +24,7 @@ export class CallRequestsController {
   constructor(private readonly callRequestsService: CallRequestsService) {}
 
   @Post()
-  create(@Body() dto: CreateCallRequestDto) {
+  create(@Body(CreateCallRequestBodyPipe) dto: CreateCallRequestDto) {
     return this.callRequestsService.create(dto);
   }
 
@@ -61,7 +65,10 @@ export class CallRequestsController {
 
   @Patch(':id/admin-note')
   @UseGuards(AdminApiKeyGuard)
-  updateAdminNote(@Param('id') id: string, @Body() dto: UpdateAdminNoteDto) {
+  updateAdminNote(
+    @Param('id') id: string,
+    @Body(UpdateAdminNoteBodyPipe) dto: UpdateAdminNoteDto,
+  ) {
     return this.callRequestsService.updateAdminNote(id, dto);
   }
 }
