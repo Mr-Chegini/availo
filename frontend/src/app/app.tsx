@@ -1,6 +1,7 @@
 import { Link, Navigate, Route, Routes } from 'react-router-dom';
 import { AdminView } from '../pages/AdminView';
 import { PublicBookingManageView } from '../pages/PublicBookingManageView';
+import { PublicBookingPageView } from '../pages/PublicBookingPageView';
 import { UserView } from '../pages/UserView';
 
 export function App() {
@@ -23,6 +24,10 @@ export function App() {
           <Route path="/" element={<Navigate to="/user" replace />} />
           <Route path="/user" element={<UserView />} />
           <Route path="/admin" element={<AdminView />} />
+          <Route
+            path="/booking-pages/:hostSlug"
+            element={<PublicBookingPageView />}
+          />
           <Route
             path="/booking-pages/:hostSlug/event-types/:eventTypeSlug/availability/bookings/:bookingId"
             element={<PublicBookingManageView />}

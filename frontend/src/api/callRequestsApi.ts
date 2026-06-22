@@ -33,6 +33,22 @@ export interface PublicBookingConfirmation {
   };
 }
 
+export interface PublicBookingPage {
+  host: {
+    name: string;
+    slug: string;
+    timezone: string;
+  };
+  eventTypes: Array<{
+    slug: string;
+    title: string;
+    durationMinutes: number;
+    requiresApproval: boolean;
+    meetingLocation?: string;
+    availabilityTimezone: string;
+  }>;
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const contentType = response.headers.get('content-type');
@@ -136,6 +152,72 @@ export async function updateAdminNote(
   );
 
   return parseJsonResponse<CallRequest>(response);
+}
+
+export async function getPublicBookingPage(
+  hostSlug: string,
+): Promise<PublicBookingPage> {
+  const response = await fetch(
+    `${API_BASE_URL}/booking-pages/${encodeURIComponent(hostSlug)}`,
+  );
+
+  return parseJsonResponse<PublicBookingPage>(response);
+}
+
+function buildPublicEventTypeAvailabilityPath(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+}): string {
+  const path = [
+    'booking-pages',
+    input.hostSlug,
+    'event-types',
+    input.eventTypeSlug,
+    'availability',
+  ]
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  return `${API_BASE_URL}/${path}`;
+}
+
+export async function getPublicEventTypeAvailability(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  date: string;
+}): Promise<AvailabilitySlot[]> {
+  const response = await fetch(
+    `${buildPublicEventTypeAvailabilityPath(input)}?date=${encodeURIComponent(
+      input.date,
+    )}`,
+  );
+
+  return parseJsonResponse<AvailabilitySlot[]>(response);
+}
+
+export async function createPublicBooking(input: {
+  hostSlug: string;
+  eventTypeSlug: string;
+  email: string;
+  phoneNumber: string;
+  scheduledAt: string;
+}): Promise<PublicBookingConfirmation> {
+  const response = await fetch(
+    `${buildPublicEventTypeAvailabilityPath(input)}/bookings`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        phoneNumber: input.phoneNumber,
+        scheduledAt: input.scheduledAt,
+      }),
+    },
+  );
+
+  return parseJsonResponse<PublicBookingConfirmation>(response);
 }
 
 function buildPublicBookingBasePath(input: {

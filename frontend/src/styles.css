@@ -318,3 +318,24 @@ button:disabled {
   max-width: 420px;
   margin-top: 20px;
 }
+
+.booking-success {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #bbf7d0;
+  border-radius: 16px;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.primary-link {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.primary-link:hover {
+  color: #1e40af;
+}
