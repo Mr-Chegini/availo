@@ -340,6 +340,11 @@ call.daily-digest
 
 ## Operational Notes
 
+### MongoDB Backups
+
+Backup and restore procedures are documented in
+[`docs/operations/mongodb-backup-restore.md`](docs/operations/mongodb-backup-restore.md).
+
 ### Idempotency
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
