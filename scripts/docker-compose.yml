@@ -42,11 +42,17 @@ services:
     ports:
       - '3000:3000'
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       CALL_REQUESTS_SERVICE_PORT: 3000
       MONGODB_URI: mongodb://mongodb:27017/call-reservation
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       RABBITMQ_CALLS_EXCHANGE: calls.exchange
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      CALENDAR_TOKEN_ENCRYPTION_SECRET: ${CALENDAR_TOKEN_ENCRYPTION_SECRET:-}
+      GOOGLE_CALENDAR_CLIENT_ID: ${GOOGLE_CALENDAR_CLIENT_ID:-}
+      GOOGLE_CALENDAR_CLIENT_SECRET: ${GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      GOOGLE_CALENDAR_REDIRECT_URI: ${GOOGLE_CALENDAR_REDIRECT_URI:-}
+      GOOGLE_CALENDAR_STATE_SECRET: ${GOOGLE_CALENDAR_STATE_SECRET:-}
     depends_on:
       mongodb:
         condition: service_healthy
@@ -64,7 +70,7 @@ services:
     ports:
       - '3001:3001'
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       SCHEDULER_SERVICE_PORT: 3001
       MONGODB_URI: mongodb://mongodb:27017/call-reservation
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
@@ -88,7 +94,7 @@ services:
     ports:
       - '3002:3002'
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-development}
       COMMUNICATION_SERVICE_PORT: 3002
       MONGODB_URI: mongodb://mongodb:27017/call-reservation
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
@@ -100,6 +106,7 @@ services:
       RABBITMQ_CALL_REMINDER_QUEUE: communication.call-reminder
       RABBITMQ_DAILY_DIGEST_QUEUE: communication.daily-digest
       ADMIN_EMAIL: ${ADMIN_EMAIL:-amir@gmail.com}
+      PUBLIC_BOOKING_BASE_URL: ${PUBLIC_BOOKING_BASE_URL:-http://localhost:3000/api}
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
       EMAIL_FROM: ${EMAIL_FROM:-no-reply@example.com}
       SMTP_HOST: ${SMTP_HOST:-}

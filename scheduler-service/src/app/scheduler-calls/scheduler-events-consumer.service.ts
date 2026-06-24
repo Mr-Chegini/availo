@@ -5,10 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  RabbitmqExchange,
-  RabbitmqRoutingKey,
-} from '@org/shared-types';
+import { RabbitmqExchange, RabbitmqRoutingKey } from '@org/shared-types';
 import type { CallApprovedEvent, CallCanceledEvent } from '@org/shared-types';
 import * as amqp from 'amqplib';
 import { SchedulerCallsService } from './scheduler-calls.service';

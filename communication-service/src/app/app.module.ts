@@ -11,7 +11,7 @@ import { EmailModule } from './email/email.module';
       envFilePath: ['.env.local', '.env'],
       validationSchema: Joi.object({
         NODE_ENV: Joi.string()
-          .valid('development', 'test', 'production')
+          .valid('development', 'test', 'staging', 'production')
           .default('development'),
 
         COMMUNICATION_SERVICE_PORT: Joi.number().default(3002),

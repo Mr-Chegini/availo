@@ -11,21 +11,29 @@ import type {
 
 @Injectable()
 export class LocalCalendarProvider implements CalendarProvider {
-  async getBusySlots(_input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
+  async getBusySlots(input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
+    void input;
+
     return [];
   }
 
   async createEvent(
-    _input: CreateCalendarEventInput,
+    input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult> {
+    void input;
+
     return {};
   }
 
-  async updateEvent(_input: UpdateCalendarEventInput): Promise<void> {
+  async updateEvent(input: UpdateCalendarEventInput): Promise<void> {
+    void input;
+
     return;
   }
 
-  async cancelEvent(_input: CancelCalendarEventInput): Promise<void> {
+  async cancelEvent(input: CancelCalendarEventInput): Promise<void> {
+    void input;
+
     return;
   }
 }

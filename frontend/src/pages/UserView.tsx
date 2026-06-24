@@ -64,7 +64,9 @@ export function UserView() {
 
     if (isWeekend(date)) {
       setSlots([]);
-      setMessage('Weekends are not available. Please pick a weekday (Mon–Fri).');
+      setMessage(
+        'Weekends are not available. Please pick a weekday (Mon–Fri).',
+      );
       return;
     }
 

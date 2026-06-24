@@ -12,7 +12,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       envFilePath: ['.env.local', '.env'],
       validationSchema: Joi.object({
         NODE_ENV: Joi.string()
-          .valid('development', 'test', 'production')
+          .valid('development', 'test', 'staging', 'production')
           .default('development'),
 
         SCHEDULER_SERVICE_PORT: Joi.number().default(3001),

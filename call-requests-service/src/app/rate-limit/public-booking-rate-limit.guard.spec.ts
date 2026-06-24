@@ -9,6 +9,8 @@ import {
 } from './public-booking-rate-limit.decorator';
 import { PublicBookingRateLimitGuard } from './public-booking-rate-limit.guard';
 
+type RateLimitHandler = () => unknown;
+
 describe('PublicBookingRateLimitGuard', () => {
   it('allows requests within the configured limit', () => {
     const handler = () => undefined;
@@ -71,9 +73,12 @@ describe('PublicBookingRateLimitGuard', () => {
 });
 
 function createGuard(configValues: Record<string, number>) {
-  const handlerGroups = new Map<Function, PublicBookingRateLimitGroup>();
+  const handlerGroups = new Map<
+    RateLimitHandler,
+    PublicBookingRateLimitGroup
+  >();
   const reflector = {
-    get: vi.fn((metadataKey: string, handler: Function) => {
+    get: vi.fn((metadataKey: string, handler: RateLimitHandler) => {
       if (metadataKey !== PUBLIC_BOOKING_RATE_LIMIT_METADATA) {
         return undefined;
       }
@@ -95,7 +100,7 @@ function createGuard(configValues: Record<string, number>) {
 }
 
 function createContext(
-  handler: Function,
+  handler: RateLimitHandler,
   forwardedIp: string,
 ): ExecutionContext {
   return {
@@ -107,5 +112,5 @@ function createContext(
         },
       }),
     }),
-  } as ExecutionContext;
+  } as unknown as ExecutionContext;
 }

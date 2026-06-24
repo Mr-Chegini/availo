@@ -89,7 +89,7 @@ export class SchedulerCallsService {
       );
     }
   }
-  
+
   @Cron('0 7 * * 1-5', {
     timeZone: 'Europe/Istanbul',
   })

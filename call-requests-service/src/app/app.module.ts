@@ -13,7 +13,7 @@ import { HostsModule } from './hosts/hosts.module';
       envFilePath: ['.env.local', '.env'],
       validationSchema: Joi.object({
         NODE_ENV: Joi.string()
-          .valid('development', 'test', 'production')
+          .valid('development', 'test', 'staging', 'production')
           .default('development'),
 
         CALL_REQUESTS_SERVICE_PORT: Joi.number().default(3000),
@@ -24,7 +24,7 @@ import { HostsModule } from './hosts/hosts.module';
         RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
 
         ADMIN_API_KEY: Joi.when('NODE_ENV', {
-          is: 'production',
+          is: Joi.valid('staging', 'production'),
           then: Joi.string().min(16).required(),
           otherwise: Joi.string().default('dev-admin-key'),
         }),

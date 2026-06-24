@@ -345,6 +345,11 @@ call.daily-digest
 Backup and restore procedures are documented in
 [`docs/operations/mongodb-backup-restore.md`](docs/operations/mongodb-backup-restore.md).
 
+### Deployment Environments
+
+Local, staging, and production environment requirements are documented in
+[`docs/operations/deployment-environments.md`](docs/operations/deployment-environments.md).
+
 ### Idempotency
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
