@@ -350,6 +350,12 @@ Backup and restore procedures are documented in
 Local, staging, and production environment requirements are documented in
 [`docs/operations/deployment-environments.md`](docs/operations/deployment-environments.md).
 
+### Secrets Management
+
+Secret classification, environment-specific secret sources, and rotation
+guidance are documented in
+[`docs/operations/secrets-management.md`](docs/operations/secrets-management.md).
+
 ### Idempotency
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
