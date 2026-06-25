@@ -21,6 +21,7 @@ import {
   type EmailMessage,
   type EmailSender,
 } from './email-sender';
+import { CommunicationMetricsService } from '../metrics/metrics.service';
 import {
   buildCallApprovedEmail,
   buildCallCanceledEmail,
@@ -49,6 +50,7 @@ export class EmailConsumerService
     private readonly configService: ConfigService,
     @Inject(EMAIL_SENDER) private readonly emailSender: EmailSender,
     private readonly processedEmailEventsService: ProcessedEmailEventsService,
+    private readonly metricsService: CommunicationMetricsService,
   ) {}
 
   async onModuleInit() {
@@ -140,7 +142,7 @@ export class EmailConsumerService
   private async sendCallRequestedEmail(
     payload: CallRequestedEvent,
   ): Promise<void> {
-    await this.emailSender.send(
+    await this.sendEmail(
       buildCallRequestedEmail(payload, this.getPublicBookingBaseUrl()),
     );
   }
@@ -248,6 +250,8 @@ export class EmailConsumerService
       },
     });
 
+    this.metricsService.increment('email.retry');
+
     this.logger.warn(
       `Retried email event from queue ${queue}; attempt ${nextRetryCount}/${this.getMaxEmailRetryAttempts()}`,
     );
@@ -284,6 +288,8 @@ export class EmailConsumerService
         },
       },
     );
+
+    this.metricsService.increment('email.dead_letter');
 
     this.logger.error(
       `Dead-lettered email event from queue ${queue} after ${retryCount} attempts`,
@@ -326,7 +332,7 @@ export class EmailConsumerService
   private async sendCallApprovedEmail(
     payload: CallApprovedEvent,
   ): Promise<void> {
-    await this.emailSender.send(
+    await this.sendEmail(
       buildCallApprovedEmail(payload, this.getPublicBookingBaseUrl()),
     );
   }
@@ -334,13 +340,13 @@ export class EmailConsumerService
   private async sendCallRejectedEmail(
     payload: CallRejectedEvent,
   ): Promise<void> {
-    await this.emailSender.send(buildCallRejectedEmail(payload));
+    await this.sendEmail(buildCallRejectedEmail(payload));
   }
 
   private async sendCallCanceledEmail(
     payload: CallCanceledEvent,
   ): Promise<void> {
-    await this.emailSender.send(buildCallCanceledEmail(payload));
+    await this.sendEmail(buildCallCanceledEmail(payload));
   }
 
   private async sendCallReminderEmails(
@@ -354,12 +360,22 @@ export class EmailConsumerService
   private async sendDailyDigestEmail(payload: DailyDigestEvent): Promise<void> {
     const adminEmail = this.configService.getOrThrow<string>('ADMIN_EMAIL');
 
-    await this.emailSender.send(buildDailyDigestEmail(payload, adminEmail));
+    await this.sendEmail(buildDailyDigestEmail(payload, adminEmail));
   }
 
   private async sendEmails(messages: EmailMessage[]): Promise<void> {
     for (const message of messages) {
+      await this.sendEmail(message);
+    }
+  }
+
+  private async sendEmail(message: EmailMessage): Promise<void> {
+    try {
       await this.emailSender.send(message);
+      this.metricsService.increment('email.send_success');
+    } catch (error) {
+      this.metricsService.increment('email.send_failure');
+      throw error;
     }
   }
 

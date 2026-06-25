@@ -101,15 +101,7 @@ Local development can keep using the in-memory limiter.
 6. Load-test public booking endpoints from multiple app instances.
 7. Enable the same config in production before horizontal scaling.
 
-## Open Decision
+## Redis Client
 
-Choose the Redis client before implementation. Options:
-
-- `ioredis`
-- `redis`
-
-Prefer the client already used by the hosting platform or the one that best fits
-the deployment target.
-
-Do not add Redis-backed rate limiting without also updating the secret/config
-docs for `REDIS_URL`.
+The implementation uses the `redis` npm package. Keep `REDIS_URL` documented in
+environment and secret-management docs when changing Redis deployment details.

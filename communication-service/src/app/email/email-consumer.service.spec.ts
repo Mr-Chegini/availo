@@ -4,6 +4,7 @@ import * as amqp from 'amqplib';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EmailSender } from './email-sender';
 import { EmailConsumerService } from './email-consumer.service';
+import { CommunicationMetricsService } from '../metrics/metrics.service';
 import type { ProcessedEmailEventsService } from './processed-email-events.service';
 
 vi.mock('amqplib', () => ({
@@ -18,6 +19,7 @@ describe('EmailConsumerService', () => {
   >;
   let emailSender: EmailSender;
   let processedEmailEventsService: ProcessedEmailEventsService;
+  let metricsService: CommunicationMetricsService;
 
   beforeEach(() => {
     consumers = {};
@@ -29,11 +31,32 @@ describe('EmailConsumerService', () => {
       hasProcessed: vi.fn().mockResolvedValue(false),
       markProcessed: vi.fn().mockResolvedValue(undefined),
     } as unknown as ProcessedEmailEventsService;
+    metricsService = new CommunicationMetricsService();
 
     vi.mocked(amqp.connect).mockResolvedValue({
       createChannel: vi.fn().mockResolvedValue(channel),
       close: vi.fn().mockResolvedValue(undefined),
     } as unknown as amqp.ChannelModel);
+  });
+
+  it('increments email send success metrics after a successful email send', async () => {
+    vi.mocked(emailSender.send).mockResolvedValue(undefined);
+    const service = createService();
+
+    await service.onModuleInit();
+
+    const message = createMessage();
+    await consumers['communication.call-requested'](message);
+
+    expect(emailSender.send).toHaveBeenCalledOnce();
+    expect(processedEmailEventsService.markProcessed).toHaveBeenCalledOnce();
+    expect(channel.ack).toHaveBeenCalledWith(message);
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'email.send_success': 1,
+      'email.send_failure': 0,
+      'email.retry': 0,
+      'email.dead_letter': 0,
+    });
   });
 
   it('retries failed email events with an incremented retry header', async () => {
@@ -61,6 +84,12 @@ describe('EmailConsumerService', () => {
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(channel.nack).not.toHaveBeenCalled();
     expect(processedEmailEventsService.markProcessed).not.toHaveBeenCalled();
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'email.send_success': 0,
+      'email.send_failure': 1,
+      'email.retry': 1,
+      'email.dead_letter': 0,
+    });
   });
 
   it('dead-letters failed email events after retry attempts are exhausted', async () => {
@@ -101,6 +130,12 @@ describe('EmailConsumerService', () => {
     expect(channel.ack).toHaveBeenCalledWith(message);
     expect(channel.nack).not.toHaveBeenCalled();
     expect(processedEmailEventsService.markProcessed).not.toHaveBeenCalled();
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'email.send_success': 0,
+      'email.send_failure': 1,
+      'email.retry': 0,
+      'email.dead_letter': 1,
+    });
   });
 
   function createService(): EmailConsumerService {
@@ -108,6 +143,7 @@ describe('EmailConsumerService', () => {
       createConfigService(),
       emailSender,
       processedEmailEventsService,
+      metricsService,
     );
   }
 });

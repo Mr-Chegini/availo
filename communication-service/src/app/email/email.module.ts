@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { EmailConsumerService } from './email-consumer.service';
 import { emailSenderProvider } from './email-sender.provider';
+import { CommunicationMetricsModule } from '../metrics/metrics.module';
 import {
   ProcessedEmailEvent,
   ProcessedEmailEventSchema,
@@ -10,6 +11,7 @@ import { ProcessedEmailEventsService } from './processed-email-events.service';
 
 @Module({
   imports: [
+    CommunicationMetricsModule,
     MongooseModule.forFeature([
       {
         name: ProcessedEmailEvent.name,
