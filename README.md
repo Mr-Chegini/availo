@@ -356,6 +356,12 @@ Secret classification, environment-specific secret sources, and rotation
 guidance are documented in
 [`docs/operations/secrets-management.md`](docs/operations/secrets-management.md).
 
+### Distributed Rate Limiting
+
+The production migration plan for Redis-backed public booking rate limiting is
+documented in
+[`docs/operations/distributed-rate-limiting.md`](docs/operations/distributed-rate-limiting.md).
+
 ### Idempotency
 
 The Scheduler Service handles duplicate `call.approved` events with an upsert based on `callRequestId`, so duplicate approval events do not create duplicate scheduled-call records.
