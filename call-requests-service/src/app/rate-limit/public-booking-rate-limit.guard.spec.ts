@@ -8,32 +8,32 @@ import {
   type PublicBookingRateLimitGroup,
 } from './public-booking-rate-limit.decorator';
 import { PublicBookingRateLimitGuard } from './public-booking-rate-limit.guard';
+import type { PublicBookingRateLimitStore } from './rate-limit-store';
 
 type RateLimitHandler = () => unknown;
 
 describe('PublicBookingRateLimitGuard', () => {
-  it('allows requests within the configured limit', () => {
+  it('allows requests within the configured limit', async () => {
     const handler = () => undefined;
     const guard = createGuard({
       PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: 2,
     });
     const context = createContext(handler, '127.0.0.1');
 
-    expect(guard.canActivate(context)).toBe(true);
-    expect(guard.canActivate(context)).toBe(true);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
   });
 
-  it('blocks requests after the configured limit is exceeded', () => {
+  it('blocks requests after the configured limit is exceeded', async () => {
     const handler = () => undefined;
     const guard = createGuard({
       PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: 1,
     });
     const context = createContext(handler, '127.0.0.1');
 
-    expect(guard.canActivate(context)).toBe(true);
-    expect(() => guard.canActivate(context)).toThrow(HttpException);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
     try {
-      guard.canActivate(context);
+      await guard.canActivate(context);
     } catch (error) {
       expect(error).toBeInstanceOf(HttpException);
       expect((error as HttpException).getStatus()).toBe(
@@ -42,17 +42,21 @@ describe('PublicBookingRateLimitGuard', () => {
     }
   });
 
-  it('tracks forwarded client IPs separately', () => {
+  it('tracks forwarded client IPs separately', async () => {
     const handler = () => undefined;
     const guard = createGuard({
       PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: 1,
     });
 
-    expect(guard.canActivate(createContext(handler, '203.0.113.1'))).toBe(true);
-    expect(guard.canActivate(createContext(handler, '203.0.113.2'))).toBe(true);
+    await expect(
+      guard.canActivate(createContext(handler, '203.0.113.1')),
+    ).resolves.toBe(true);
+    await expect(
+      guard.canActivate(createContext(handler, '203.0.113.2')),
+    ).resolves.toBe(true);
   });
 
-  it('resets the counter after the configured window', () => {
+  it('resets the counter after the configured window', async () => {
     const handler = () => undefined;
     const guard = createGuard({
       PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: 1,
@@ -62,17 +66,38 @@ describe('PublicBookingRateLimitGuard', () => {
     const nowSpy = vi.spyOn(Date, 'now');
 
     nowSpy.mockReturnValue(1_000);
-    expect(guard.canActivate(context)).toBe(true);
-    expect(() => guard.canActivate(context)).toThrow(HttpException);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      HttpException,
+    );
 
     nowSpy.mockReturnValue(2_001);
-    expect(guard.canActivate(context)).toBe(true);
+    await expect(guard.canActivate(context)).resolves.toBe(true);
 
     nowSpy.mockRestore();
   });
+
+  it('fails closed when the rate-limit store fails', async () => {
+    const handler = () => undefined;
+    const guard = createGuard(
+      {
+        PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX: 1,
+      },
+      {
+        consume: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
+      },
+    );
+
+    await expect(
+      guard.canActivate(createContext(handler, '127.0.0.1')),
+    ).rejects.toThrow('Redis unavailable');
+  });
 });
 
-function createGuard(configValues: Record<string, number>) {
+function createGuard(
+  configValues: Record<string, number>,
+  rateLimitStore: PublicBookingRateLimitStore = new MemoryTestRateLimitStore(),
+) {
   const handlerGroups = new Map<
     RateLimitHandler,
     PublicBookingRateLimitGroup
@@ -96,7 +121,11 @@ function createGuard(configValues: Record<string, number>) {
     }),
   } as unknown as ConfigService;
 
-  return new PublicBookingRateLimitGuard(reflector, configService);
+  return new PublicBookingRateLimitGuard(
+    reflector,
+    configService,
+    rateLimitStore,
+  );
 }
 
 function createContext(
@@ -113,4 +142,27 @@ function createContext(
       }),
     }),
   } as unknown as ExecutionContext;
+}
+
+class MemoryTestRateLimitStore implements PublicBookingRateLimitStore {
+  private readonly entries = new Map<
+    string,
+    { count: number; resetAt: number }
+  >();
+
+  async consume(input: { key: string; windowMs: number }): Promise<number> {
+    const now = Date.now();
+    const entry = this.entries.get(input.key);
+
+    if (!entry || entry.resetAt <= now) {
+      this.entries.set(input.key, {
+        count: 1,
+        resetAt: now + input.windowMs,
+      });
+      return 1;
+    }
+
+    entry.count += 1;
+    return entry.count;
+  }
 }

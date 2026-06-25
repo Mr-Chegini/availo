@@ -31,6 +31,20 @@ services:
       retries: 5
       start_period: 30s
 
+  redis:
+    image: redis:7-alpine
+    container_name: call-reservation-redis
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   call-requests-service:
     build:
       context: ..
@@ -47,6 +61,8 @@ services:
       MONGODB_URI: mongodb://mongodb:27017/call-reservation
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
       RABBITMQ_CALLS_EXCHANGE: calls.exchange
+      PUBLIC_BOOKING_RATE_LIMIT_STORE: ${PUBLIC_BOOKING_RATE_LIMIT_STORE:-memory}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
       CALENDAR_TOKEN_ENCRYPTION_SECRET: ${CALENDAR_TOKEN_ENCRYPTION_SECRET:-}
       GOOGLE_CALENDAR_CLIENT_ID: ${GOOGLE_CALENDAR_CLIENT_ID:-}
@@ -57,6 +73,8 @@ services:
       mongodb:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   scheduler-service:
@@ -136,3 +154,4 @@ services:
 volumes:
   mongodb_data:
   rabbitmq_data:
+  redis_data:

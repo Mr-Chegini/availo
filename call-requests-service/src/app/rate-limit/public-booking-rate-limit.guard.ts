@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,11 +12,10 @@ import {
   PUBLIC_BOOKING_RATE_LIMIT_METADATA,
   type PublicBookingRateLimitGroup,
 } from './public-booking-rate-limit.decorator';
-
-interface RateLimitEntry {
-  count: number;
-  resetAt: number;
-}
+import {
+  PUBLIC_BOOKING_RATE_LIMIT_STORE,
+  type PublicBookingRateLimitStore,
+} from './rate-limit-store';
 
 interface RateLimitConfig {
   maxRequests: number;
@@ -24,14 +24,14 @@ interface RateLimitConfig {
 
 @Injectable()
 export class PublicBookingRateLimitGuard implements CanActivate {
-  private readonly entries = new Map<string, RateLimitEntry>();
-
   constructor(
     private readonly reflector: Reflector,
     private readonly configService: ConfigService,
+    @Inject(PUBLIC_BOOKING_RATE_LIMIT_STORE)
+    private readonly rateLimitStore: PublicBookingRateLimitStore,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const group = this.reflector.get<PublicBookingRateLimitGroup>(
       PUBLIC_BOOKING_RATE_LIMIT_METADATA,
       context.getHandler(),
@@ -44,26 +44,19 @@ export class PublicBookingRateLimitGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const clientIp = getClientIp(request);
     const config = this.getRateLimitConfig(group);
-    const key = `${group}:${clientIp}`;
-    const now = Date.now();
-    const entry = this.entries.get(key);
+    const key = `availo:rate-limit:public-booking:${group}:${clientIp}`;
+    const count = await this.rateLimitStore.consume({
+      key,
+      windowMs: config.windowMs,
+    });
 
-    if (!entry || entry.resetAt <= now) {
-      this.entries.set(key, {
-        count: 1,
-        resetAt: now + config.windowMs,
-      });
-      return true;
-    }
-
-    if (entry.count >= config.maxRequests) {
+    if (count > config.maxRequests) {
       throw new HttpException(
         'Too many public booking requests. Please try again later.',
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
-    entry.count += 1;
     return true;
   }
 

@@ -40,6 +40,14 @@ import { HostsModule } from './hosts/hosts.module';
           .integer()
           .min(1)
           .default(60),
+        PUBLIC_BOOKING_RATE_LIMIT_STORE: Joi.string()
+          .valid('memory', 'redis')
+          .default('memory'),
+        REDIS_URL: Joi.when('PUBLIC_BOOKING_RATE_LIMIT_STORE', {
+          is: 'redis',
+          then: Joi.string().uri().required(),
+          otherwise: Joi.string().uri().optional(),
+        }),
         PUBLIC_BOOKING_RATE_LIMIT_LOOKUP_MAX: Joi.number()
           .integer()
           .min(1)

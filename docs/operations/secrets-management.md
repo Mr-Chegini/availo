@@ -16,6 +16,8 @@ Treat these values as secrets:
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`.
 - `GOOGLE_CALENDAR_CLIENT_SECRET`.
 - `GOOGLE_CALENDAR_STATE_SECRET`.
+- `REDIS_URL` when it contains credentials or points to a managed Redis
+  service.
 - `SMTP_USER`.
 - `SMTP_PASSWORD`.
 
@@ -55,6 +57,7 @@ These values are normally non-secret configuration:
 - `PUBLIC_BOOKING_RATE_LIMIT_AVAILABILITY_MAX`
 - `PUBLIC_BOOKING_RATE_LIMIT_CREATE_MAX`
 - `PUBLIC_BOOKING_RATE_LIMIT_MANAGE_MAX`
+- `PUBLIC_BOOKING_RATE_LIMIT_STORE`
 - `VITE_API_BASE_URL`
 
 ## Local Development
@@ -93,6 +96,7 @@ Required staging secrets:
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_STATE_SECRET`
+- `REDIS_URL` when Redis-backed rate limiting is enabled
 
 Required when staging uses SMTP:
 
@@ -115,6 +119,7 @@ Required production secrets:
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_STATE_SECRET`
+- `REDIS_URL` when Redis-backed rate limiting is enabled
 - `SMTP_USER`
 - `SMTP_PASSWORD`
 

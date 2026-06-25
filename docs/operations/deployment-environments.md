@@ -26,6 +26,7 @@ Local values:
 - `ADMIN_API_KEY=dev-admin-key`
 - `PUBLIC_BOOKING_BASE_URL=http://localhost:3000/api`
 - `VITE_API_BASE_URL=http://localhost:3000/api`
+- `PUBLIC_BOOKING_RATE_LIMIT_STORE=memory`
 
 Run Docker Compose from the repository root:
 
@@ -37,6 +38,7 @@ The Compose file uses internal service hostnames for backend containers:
 
 - `mongodb://mongodb:27017/call-reservation`
 - `amqp://guest:guest@rabbitmq:5672`
+- `redis://redis:6379`
 
 ## Staging
 
@@ -57,6 +59,8 @@ Required staging values:
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_REDIRECT_URI`
 - `GOOGLE_CALENDAR_STATE_SECRET`
+- `PUBLIC_BOOKING_RATE_LIMIT_STORE`
+- `REDIS_URL` when `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis`
 
 Use a long random `ADMIN_API_KEY`; staging uses the same validation rule as
 production. Use staging Google OAuth credentials and redirect URIs.
@@ -89,6 +93,8 @@ Production required values:
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_REDIRECT_URI`
 - `GOOGLE_CALENDAR_STATE_SECRET`
+- `PUBLIC_BOOKING_RATE_LIMIT_STORE`
+- `REDIS_URL` when `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis`
 
 Production email should use SMTP or a future dedicated provider:
 

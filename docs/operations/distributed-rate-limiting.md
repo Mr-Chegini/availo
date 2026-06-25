@@ -1,8 +1,8 @@
 # Distributed Public Booking Rate Limiting
 
-The current public booking rate limiter is intentionally in-memory. It is
-acceptable for local development and single-instance MVP deployments, but it is
-not sufficient when the Call Requests Service runs more than one instance.
+The public booking rate limiter supports an in-memory store for local
+development and a Redis-backed store for staging/production deployments that run
+more than one Call Requests Service instance.
 
 Current implementation:
 
@@ -34,6 +34,8 @@ PUBLIC_BOOKING_RATE_LIMIT_MANAGE_MAX=30
 ```
 
 Keep `PUBLIC_BOOKING_RATE_LIMIT_STORE=memory` or unset for local development.
+Set `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis` in staging/production when multiple
+app instances are running.
 
 ## Redis Key Design
 
@@ -87,21 +89,17 @@ Local development can keep using the in-memory limiter.
 
 ## Rollout Plan
 
-1. Add a Redis service to local Docker Compose for development testing.
-2. Add `REDIS_URL` and `PUBLIC_BOOKING_RATE_LIMIT_STORE` validation to the Call
-   Requests Service.
-3. Introduce a small rate-limit store abstraction:
-   - `MemoryRateLimitStore`
-   - `RedisRateLimitStore`
+1. Configure a managed Redis instance for staging.
+2. Set `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis`.
+3. Set `REDIS_URL`.
 4. Keep the existing guard API and decorators unchanged.
-5. Add focused tests for:
+5. Run focused tests for:
    - memory store behavior
    - Redis store command/script behavior with a mocked Redis client
    - guard rejection when the store count exceeds the limit
    - Redis failure behavior
-6. Deploy to staging with `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis`.
-7. Load-test public booking endpoints from multiple app instances.
-8. Enable the same config in production before horizontal scaling.
+6. Load-test public booking endpoints from multiple app instances.
+7. Enable the same config in production before horizontal scaling.
 
 ## Open Decision
 
