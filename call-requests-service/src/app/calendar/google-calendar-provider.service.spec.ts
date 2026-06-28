@@ -1,12 +1,16 @@
 import axios from 'axios';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GoogleCalendarProvider } from './google-calendar-provider.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 vi.mock('axios');
 
 describe('GoogleCalendarProvider', () => {
+  let metricsService: MetricsService;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    metricsService = new MetricsService();
   });
 
   it('reads and maps Google free/busy slots', async () => {
@@ -48,6 +52,7 @@ describe('GoogleCalendarProvider', () => {
     const provider = new GoogleCalendarProvider(
       calendarAccountsService as unknown as never,
       calendarTokenProtector as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -90,6 +95,40 @@ describe('GoogleCalendarProvider', () => {
         },
       },
     );
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.freebusy_success': 1,
+      'calendar.freebusy_failure': 0,
+    });
+  });
+
+  it('increments free/busy failure metrics when Google free/busy fails', async () => {
+    vi.mocked(axios.post).mockRejectedValueOnce(new Error('Google down'));
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      metricsService,
+    );
+
+    await expect(
+      provider.getBusySlots({
+        from: '2026-05-15T07:00:00.000Z',
+        to: '2026-05-15T15:00:00.000Z',
+      }),
+    ).rejects.toThrow('Google down');
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.freebusy_success': 0,
+      'calendar.freebusy_failure': 1,
+    });
   });
 
   it('does not restore a token when no active Google account is connected', async () => {
@@ -107,6 +146,7 @@ describe('GoogleCalendarProvider', () => {
     const provider = new GoogleCalendarProvider(
       calendarAccountsService as unknown as never,
       calendarTokenProtector as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -138,6 +178,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -174,6 +215,43 @@ describe('GoogleCalendarProvider', () => {
         },
       },
     );
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_create_success': 1,
+      'calendar.event_create_failure': 0,
+    });
+  });
+
+  it('increments event create failure metrics when Google event creation fails', async () => {
+    vi.mocked(axios.post).mockRejectedValueOnce(new Error('Google down'));
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      metricsService,
+    );
+
+    await expect(
+      provider.createEvent({
+        title: 'Call with user@example.com',
+        startsAt: '2026-05-15T07:00:00.000Z',
+        endsAt: '2026-05-15T07:30:00.000Z',
+        attendeeEmail: 'user@example.com',
+        attendeePhoneNumber: '+90 555 111 22 33',
+      }),
+    ).rejects.toThrow('Google down');
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_create_success': 0,
+      'calendar.event_create_failure': 1,
+    });
   });
 
   it('skips event creation when no active Google account is connected', async () => {
@@ -184,6 +262,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -217,6 +296,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      metricsService,
     );
 
     await provider.createEvent({
@@ -252,6 +332,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -289,6 +370,44 @@ describe('GoogleCalendarProvider', () => {
         },
       },
     );
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_update_success': 1,
+      'calendar.event_update_failure': 0,
+    });
+  });
+
+  it('increments event update failure metrics when Google event update fails', async () => {
+    vi.mocked(axios.patch).mockRejectedValueOnce(new Error('Google down'));
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      metricsService,
+    );
+
+    await expect(
+      provider.updateEvent({
+        providerEventId: 'google-event-1',
+        title: 'Call with user@example.com',
+        startsAt: '2026-05-15T08:00:00.000Z',
+        endsAt: '2026-05-15T08:30:00.000Z',
+        attendeeEmail: 'user@example.com',
+        attendeePhoneNumber: '+90 555 111 22 33',
+      }),
+    ).rejects.toThrow('Google down');
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_update_success': 0,
+      'calendar.event_update_failure': 1,
+    });
   });
 
   it('skips event update when no active Google account is connected', async () => {
@@ -299,6 +418,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -329,6 +449,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(
@@ -344,6 +465,39 @@ describe('GoogleCalendarProvider', () => {
         },
       },
     );
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_cancel_success': 1,
+      'calendar.event_cancel_failure': 0,
+    });
+  });
+
+  it('increments event cancel failure metrics when Google event cancellation fails', async () => {
+    vi.mocked(axios.delete).mockRejectedValueOnce(new Error('Google down'));
+    const provider = new GoogleCalendarProvider(
+      {
+        findActiveByOwner: vi.fn().mockResolvedValue([
+          {
+            provider: 'google',
+            accessToken: 'protected-google-access-token',
+            primaryCalendarId: 'primary',
+          },
+        ]),
+      } as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      metricsService,
+    );
+
+    await expect(
+      provider.cancelEvent({
+        providerEventId: 'google-event-1',
+      }),
+    ).rejects.toThrow('Google down');
+    expect(metricsService.snapshot().counters).toMatchObject({
+      'calendar.event_cancel_success': 0,
+      'calendar.event_cancel_failure': 1,
+    });
   });
 
   it('skips event cancellation when no active Google account is connected', async () => {
@@ -354,6 +508,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      metricsService,
     );
 
     await expect(

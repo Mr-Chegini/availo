@@ -4,6 +4,7 @@ import { SchedulerCall, SchedulerCallSchema } from './scheduler-call.schema';
 import { SchedulerCallsService } from './scheduler-calls.service';
 import { SchedulerEventsConsumerService } from './scheduler-events-consumer.service';
 import { MessagingModule } from '../messaging/messaging.module';
+import { SchedulerMetricsModule } from '../metrics/metrics.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { MessagingModule } from '../messaging/messaging.module';
       },
     ]),
     MessagingModule,
+    SchedulerMetricsModule,
   ],
   providers: [SchedulerCallsService, SchedulerEventsConsumerService],
 })

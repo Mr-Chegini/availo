@@ -11,6 +11,7 @@ import type {
 } from './calendar-provider';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import { CalendarTokenProtector } from './calendar-token-protector.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 const DEFAULT_OWNER_ID = 'default-admin';
 const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
@@ -58,6 +59,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   constructor(
     private readonly calendarAccountsService: CalendarAccountsService,
     private readonly calendarTokenProtector: CalendarTokenProtector,
+    private readonly metricsService: MetricsService,
   ) {}
 
   async getBusySlots(input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
@@ -67,33 +69,40 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return [];
     }
 
-    const response = await axios.post<GoogleFreeBusyResponse>(
-      GOOGLE_FREE_BUSY_URL,
-      {
-        timeMin: input.from,
-        timeMax: input.to,
-        items: [
-          {
-            id: connection.primaryCalendarId,
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${connection.accessToken}`,
+    try {
+      const response = await axios.post<GoogleFreeBusyResponse>(
+        GOOGLE_FREE_BUSY_URL,
+        {
+          timeMin: input.from,
+          timeMax: input.to,
+          items: [
+            {
+              id: connection.primaryCalendarId,
+            },
+          ],
         },
-      },
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${connection.accessToken}`,
+          },
+        },
+      );
 
-    return (
-      response.data.calendars[connection.primaryCalendarId]?.busy.map(
-        (busySlot) => ({
-          startsAt: busySlot.start,
-          endsAt: busySlot.end,
-          source: 'google',
-        }),
-      ) ?? []
-    );
+      this.metricsService.increment('calendar.freebusy_success');
+
+      return (
+        response.data.calendars[connection.primaryCalendarId]?.busy.map(
+          (busySlot) => ({
+            startsAt: busySlot.start,
+            endsAt: busySlot.end,
+            source: 'google',
+          }),
+        ) ?? []
+      );
+    } catch (error) {
+      this.metricsService.increment('calendar.freebusy_failure');
+      throw error;
+    }
   }
 
   async createEvent(
@@ -105,21 +114,28 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return {};
     }
 
-    const response = await axios.post<GoogleCreateEventResponse>(
-      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
-        connection.primaryCalendarId,
-      )}/events`,
-      toGoogleCalendarEventInput(input),
-      {
-        headers: {
-          Authorization: `Bearer ${connection.accessToken}`,
+    try {
+      const response = await axios.post<GoogleCreateEventResponse>(
+        `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+          connection.primaryCalendarId,
+        )}/events`,
+        toGoogleCalendarEventInput(input),
+        {
+          headers: {
+            Authorization: `Bearer ${connection.accessToken}`,
+          },
         },
-      },
-    );
+      );
 
-    return {
-      providerEventId: response.data.id,
-    };
+      this.metricsService.increment('calendar.event_create_success');
+
+      return {
+        providerEventId: response.data.id,
+      };
+    } catch (error) {
+      this.metricsService.increment('calendar.event_create_failure');
+      throw error;
+    }
   }
 
   async updateEvent(input: UpdateCalendarEventInput): Promise<void> {
@@ -129,17 +145,23 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return;
     }
 
-    await axios.patch(
-      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
-        connection.primaryCalendarId,
-      )}/events/${encodeURIComponent(input.providerEventId)}`,
-      toGoogleCalendarEventInput(input),
-      {
-        headers: {
-          Authorization: `Bearer ${connection.accessToken}`,
+    try {
+      await axios.patch(
+        `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+          connection.primaryCalendarId,
+        )}/events/${encodeURIComponent(input.providerEventId)}`,
+        toGoogleCalendarEventInput(input),
+        {
+          headers: {
+            Authorization: `Bearer ${connection.accessToken}`,
+          },
         },
-      },
-    );
+      );
+      this.metricsService.increment('calendar.event_update_success');
+    } catch (error) {
+      this.metricsService.increment('calendar.event_update_failure');
+      throw error;
+    }
   }
 
   async cancelEvent(input: CancelCalendarEventInput): Promise<void> {
@@ -149,16 +171,22 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return;
     }
 
-    await axios.delete(
-      `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
-        connection.primaryCalendarId,
-      )}/events/${encodeURIComponent(input.providerEventId)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${connection.accessToken}`,
+    try {
+      await axios.delete(
+        `${GOOGLE_CALENDAR_API_BASE_URL}/${encodeURIComponent(
+          connection.primaryCalendarId,
+        )}/events/${encodeURIComponent(input.providerEventId)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${connection.accessToken}`,
+          },
         },
-      },
-    );
+      );
+      this.metricsService.increment('calendar.event_cancel_success');
+    } catch (error) {
+      this.metricsService.increment('calendar.event_cancel_failure');
+      throw error;
+    }
   }
 
   private async getConnectionForDefaultOwner(): Promise<

@@ -13,10 +13,12 @@ import { CalendarTokenProtector } from './calendar-token-protector.service';
 import { GoogleCalendarProvider } from './google-calendar-provider.service';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 import { AuthModule } from '../auth/auth.module';
+import { MetricsModule } from '../metrics/metrics.module';
 
 @Module({
   imports: [
     AuthModule,
+    MetricsModule,
     MongooseModule.forFeature([
       {
         name: CalendarAccount.name,

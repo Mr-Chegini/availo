@@ -14,6 +14,7 @@ import {
 import { RabbitmqPublisherService } from '../messaging/rabbitmq-publisher.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DateTime } from 'luxon';
+import { SchedulerMetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class SchedulerCallsService {
@@ -23,6 +24,7 @@ export class SchedulerCallsService {
     @InjectModel(SchedulerCall.name)
     private readonly schedulerCallModel: Model<SchedulerCallDocument>,
     private readonly rabbitmqPublisherService: RabbitmqPublisherService,
+    private readonly metricsService: SchedulerMetricsService,
   ) {}
 
   async handleCallApproved(event: CallApprovedEvent): Promise<void> {
@@ -76,10 +78,16 @@ export class SchedulerCallsService {
         scheduledAt: call.scheduledAt.toISOString(),
       };
 
-      await this.rabbitmqPublisherService.publish(
-        RabbitmqRoutingKey.CALL_REMINDER,
-        event,
-      );
+      try {
+        await this.rabbitmqPublisherService.publish(
+          RabbitmqRoutingKey.CALL_REMINDER,
+          event,
+        );
+        this.metricsService.increment('scheduler.reminder_publish_success');
+      } catch (error) {
+        this.metricsService.increment('scheduler.reminder_publish_failure');
+        throw error;
+      }
 
       call.reminderSent = true;
       await call.save();
@@ -119,10 +127,16 @@ export class SchedulerCallsService {
       })),
     };
 
-    await this.rabbitmqPublisherService.publish(
-      RabbitmqRoutingKey.DAILY_DIGEST,
-      event,
-    );
+    try {
+      await this.rabbitmqPublisherService.publish(
+        RabbitmqRoutingKey.DAILY_DIGEST,
+        event,
+      );
+      this.metricsService.increment('scheduler.daily_digest_publish_success');
+    } catch (error) {
+      this.metricsService.increment('scheduler.daily_digest_publish_failure');
+      throw error;
+    }
 
     this.logger.log(
       `Published daily digest for ${event.date} with ${event.calls.length} calls`,

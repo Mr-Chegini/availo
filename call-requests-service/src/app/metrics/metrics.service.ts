@@ -7,6 +7,14 @@ export type MetricCounterName =
   | 'booking.rejected'
   | 'booking.canceled'
   | 'booking.rescheduled'
+  | 'calendar.freebusy_success'
+  | 'calendar.freebusy_failure'
+  | 'calendar.event_create_success'
+  | 'calendar.event_create_failure'
+  | 'calendar.event_update_success'
+  | 'calendar.event_update_failure'
+  | 'calendar.event_cancel_success'
+  | 'calendar.event_cancel_failure'
   | 'rabbitmq.publish_failed';
 
 export type MetricsSnapshot = {
@@ -21,6 +29,14 @@ const COUNTER_NAMES: MetricCounterName[] = [
   'booking.rejected',
   'booking.canceled',
   'booking.rescheduled',
+  'calendar.freebusy_success',
+  'calendar.freebusy_failure',
+  'calendar.event_create_success',
+  'calendar.event_create_failure',
+  'calendar.event_update_success',
+  'calendar.event_update_failure',
+  'calendar.event_cancel_success',
+  'calendar.event_cancel_failure',
   'rabbitmq.publish_failed',
 ];
 
