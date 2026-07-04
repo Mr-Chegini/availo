@@ -21,7 +21,10 @@ describe('EventTypesService', () => {
       findOne: vi.fn().mockReturnValue(query),
     };
     const hostAccountsService = {
-      findDefaultOrCreate: vi.fn().mockResolvedValue({ _id: 'host-1' }),
+      findDefaultOrCreate: vi.fn().mockResolvedValue({
+        _id: 'host-1',
+        timezone: 'America/New_York',
+      }),
     };
     const service = new EventTypesService(
       eventTypeModel as unknown as never,
@@ -130,7 +133,10 @@ describe('EventTypesService', () => {
       create: vi.fn(),
     };
     const hostAccountsService = {
-      findDefaultOrCreate: vi.fn().mockResolvedValue({ _id: 'host-1' }),
+      findDefaultOrCreate: vi.fn().mockResolvedValue({
+        _id: 'host-1',
+        timezone: 'America/New_York',
+      }),
     };
     const service = new EventTypesService(
       eventTypeModel as unknown as never,
@@ -159,7 +165,10 @@ describe('EventTypesService', () => {
       create: vi.fn().mockResolvedValue(eventType),
     };
     const hostAccountsService = {
-      findDefaultOrCreate: vi.fn().mockResolvedValue({ _id: 'host-1' }),
+      findDefaultOrCreate: vi.fn().mockResolvedValue({
+        _id: 'host-1',
+        timezone: 'America/New_York',
+      }),
     };
     const service = new EventTypesService(
       eventTypeModel as unknown as never,
@@ -176,12 +185,41 @@ describe('EventTypesService', () => {
       durationMinutes: 30,
       isActive: true,
       requiresApproval: true,
-      availabilityTimezone: 'Europe/Istanbul',
+      availabilityTimezone: 'America/New_York',
       workdayStartHour: 10,
       workdayEndHour: 18,
       slotIntervalMinutes: 30,
       minimumNoticeMinutes: 0,
     });
+  });
+
+  it('does not change the timezone for an existing default event type', async () => {
+    const eventType = {
+      slug: DEFAULT_EVENT_TYPE_SLUG,
+      durationMinutes: 30,
+      availabilityTimezone: 'Europe/Istanbul',
+    };
+    const eventTypeModel = {
+      findOne: vi.fn().mockReturnValue({
+        exec: vi.fn().mockResolvedValue(eventType),
+      }),
+      create: vi.fn(),
+    };
+    const hostAccountsService = {
+      findDefaultOrCreate: vi.fn().mockResolvedValue({
+        _id: 'host-1',
+        timezone: 'America/New_York',
+      }),
+    };
+    const service = new EventTypesService(
+      eventTypeModel as unknown as never,
+      hostAccountsService as unknown as HostAccountsService,
+    );
+
+    await expect(service.findDefaultOrCreate()).resolves.toBe(
+      eventType as EventTypeDocument,
+    );
+    expect(eventTypeModel.create).not.toHaveBeenCalled();
   });
 
   it('returns the created default event type after a duplicate key race', async () => {

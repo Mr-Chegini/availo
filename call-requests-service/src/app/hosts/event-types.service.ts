@@ -4,7 +4,6 @@ import type { Model, Types } from 'mongoose';
 import {
   DEFAULT_EVENT_TYPE_MINIMUM_NOTICE_MINUTES,
   DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
-  DEFAULT_EVENT_TYPE_TIMEZONE,
   DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
   DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
   EventType,
@@ -20,7 +19,6 @@ const DEFAULT_EVENT_TYPE_INPUT = {
   durationMinutes: 30,
   isActive: true,
   requiresApproval: true,
-  availabilityTimezone: DEFAULT_EVENT_TYPE_TIMEZONE,
   workdayStartHour: DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
   workdayEndHour: DEFAULT_EVENT_TYPE_WORKDAY_END_HOUR,
   slotIntervalMinutes: DEFAULT_EVENT_TYPE_SLOT_INTERVAL_MINUTES,
@@ -99,6 +97,7 @@ export class EventTypesService {
       return await this.eventTypeModel.create({
         hostId: host._id,
         ...DEFAULT_EVENT_TYPE_INPUT,
+        availabilityTimezone: host.timezone,
       });
     } catch (error) {
       if (isDuplicateKeyError(error)) {
