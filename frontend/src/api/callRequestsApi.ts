@@ -1,5 +1,6 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const ADMIN_API_KEY = import.meta.env.VITE_ADMIN_API_KEY || '';
 
 export interface CallRequest {
   id: string;
@@ -72,6 +73,19 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+function getAdminHeaders(
+  headers: Record<string, string> = {},
+): Record<string, string> {
+  if (!ADMIN_API_KEY) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    'x-admin-api-key': ADMIN_API_KEY,
+  };
+}
+
 export async function getAvailability(
   date: string,
 ): Promise<AvailabilitySlot[]> {
@@ -99,7 +113,9 @@ export async function createCallRequest(input: {
 }
 
 export async function getCallRequests(): Promise<CallRequest[]> {
-  const response = await fetch(`${API_BASE_URL}/call-requests`);
+  const response = await fetch(`${API_BASE_URL}/call-requests`, {
+    headers: getAdminHeaders(),
+  });
 
   return parseJsonResponse<CallRequest[]>(response);
 }
@@ -107,6 +123,7 @@ export async function getCallRequests(): Promise<CallRequest[]> {
 export async function approveCallRequest(id: string): Promise<CallRequest> {
   const response = await fetch(`${API_BASE_URL}/call-requests/${id}/approve`, {
     method: 'PATCH',
+    headers: getAdminHeaders(),
   });
 
   return parseJsonResponse<CallRequest>(response);
@@ -115,6 +132,7 @@ export async function approveCallRequest(id: string): Promise<CallRequest> {
 export async function rejectCallRequest(id: string): Promise<CallRequest> {
   const response = await fetch(`${API_BASE_URL}/call-requests/${id}/reject`, {
     method: 'PATCH',
+    headers: getAdminHeaders(),
   });
 
   return parseJsonResponse<CallRequest>(response);
@@ -123,6 +141,7 @@ export async function rejectCallRequest(id: string): Promise<CallRequest> {
 export async function markCallAsCalled(id: string): Promise<CallRequest> {
   const response = await fetch(`${API_BASE_URL}/call-requests/${id}/called`, {
     method: 'PATCH',
+    headers: getAdminHeaders(),
   });
 
   return parseJsonResponse<CallRequest>(response);
@@ -131,6 +150,7 @@ export async function markCallAsCalled(id: string): Promise<CallRequest> {
 export async function cancelCallRequest(id: string): Promise<CallRequest> {
   const response = await fetch(`${API_BASE_URL}/call-requests/${id}/cancel`, {
     method: 'PATCH',
+    headers: getAdminHeaders(),
   });
 
   return parseJsonResponse<CallRequest>(response);
@@ -144,9 +164,9 @@ export async function updateAdminNote(
     `${API_BASE_URL}/call-requests/${id}/admin-note`,
     {
       method: 'PATCH',
-      headers: {
+      headers: getAdminHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify({ adminNote }),
     },
   );

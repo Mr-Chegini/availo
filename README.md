@@ -170,6 +170,16 @@ Views:
 
 The frontend calls the Call Requests Service API.
 
+For local/MVP admin usage, set the frontend admin API key in `frontend/.env`:
+
+```env
+VITE_ADMIN_API_KEY=dev-admin-key
+```
+
+`VITE_ADMIN_API_KEY` is compiled into browser code. It is only a local/MVP
+bridge for the current API-key guard and should be replaced by real admin
+authentication before production customer traffic.
+
 ## Shared Types
 
 Reusable DTOs, enums, and RabbitMQ event payloads live in:
