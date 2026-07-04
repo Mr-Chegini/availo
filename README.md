@@ -216,6 +216,7 @@ RABBITMQ_DAILY_DIGEST_QUEUE=communication.daily-digest
 
 RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
+RABBITMQ_CALL_RESCHEDULED_SCHEDULER_QUEUE=scheduler.call-rescheduled
 
 ADMIN_EMAIL=amir@gmail.com
 ADMIN_API_KEY=dev-admin-key
@@ -334,6 +335,7 @@ call.requested
 call.approved
 call.rejected
 call.canceled
+call.rescheduled
 call.reminder
 call.daily-digest
 ```

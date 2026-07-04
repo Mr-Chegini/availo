@@ -667,6 +667,15 @@ describe('CallRequestsService', () => {
     });
     expect(callRequest.scheduledAt).toEqual(scheduledAt);
     expect(callRequest.save).toHaveBeenCalledOnce();
+    expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
+      RabbitmqRoutingKey.CALL_RESCHEDULED,
+      {
+        callRequestId: 'call-1',
+        email: 'user@example.com',
+        phoneNumber: '+90 555 111 22 33',
+        scheduledAt: '2030-01-01T09:00:00.000Z',
+      },
+    );
     expect(metricsService.increment).toHaveBeenCalledWith(
       'booking.rescheduled',
     );

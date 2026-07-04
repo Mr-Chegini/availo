@@ -4,6 +4,7 @@ import {
   DailyDigestEvent,
   RabbitmqRoutingKey,
   type CallApprovedEvent,
+  type CallRescheduledEvent,
   type CallReminderEvent,
 } from '@org/shared-types';
 import type { Model } from 'mongoose';
@@ -52,6 +53,26 @@ export class SchedulerCallsService {
     if (result.deletedCount > 0) {
       this.logger.log(`Removed scheduled call ${callRequestId} after cancel`);
     }
+  }
+
+  async handleCallRescheduled(event: CallRescheduledEvent): Promise<void> {
+    await this.schedulerCallModel.updateOne(
+      { callRequestId: event.callRequestId },
+      {
+        $set: {
+          callRequestId: event.callRequestId,
+          email: event.email,
+          phoneNumber: event.phoneNumber,
+          scheduledAt: new Date(event.scheduledAt),
+          reminderSent: false,
+        },
+      },
+      { upsert: true },
+    );
+
+    this.logger.log(
+      `Updated scheduled call ${event.callRequestId} after reschedule to ${event.scheduledAt}`,
+    );
   }
 
   @Cron(CronExpression.EVERY_MINUTE)

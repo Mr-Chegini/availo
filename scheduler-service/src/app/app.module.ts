@@ -27,6 +27,9 @@ import { ScheduleModule } from '@nestjs/schedule';
         RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE: Joi.string().default(
           'scheduler.call-canceled',
         ),
+        RABBITMQ_CALL_RESCHEDULED_SCHEDULER_QUEUE: Joi.string().default(
+          'scheduler.call-rescheduled',
+        ),
       }),
     }),
 

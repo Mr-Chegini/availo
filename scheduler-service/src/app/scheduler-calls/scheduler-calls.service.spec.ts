@@ -6,6 +6,7 @@ import { SchedulerCallsService } from './scheduler-calls.service';
 describe('SchedulerCallsService metrics', () => {
   let schedulerCallModel: {
     find: ReturnType<typeof vi.fn>;
+    updateOne: ReturnType<typeof vi.fn>;
   };
   let rabbitmqPublisherService: {
     publish: ReturnType<typeof vi.fn>;
@@ -15,6 +16,7 @@ describe('SchedulerCallsService metrics', () => {
   beforeEach(() => {
     schedulerCallModel = {
       find: vi.fn(),
+      updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
     };
     rabbitmqPublisherService = {
       publish: vi.fn().mockResolvedValue(undefined),
@@ -115,6 +117,31 @@ describe('SchedulerCallsService metrics', () => {
       'scheduler.daily_digest_publish_success': 0,
       'scheduler.daily_digest_publish_failure': 1,
     });
+  });
+
+  it('updates scheduler projection when a scheduled call is rescheduled', async () => {
+    const service = createService();
+
+    await service.handleCallRescheduled({
+      callRequestId: 'call-1',
+      email: 'user@example.com',
+      phoneNumber: '+90 555 111 22 33',
+      scheduledAt: '2030-01-01T11:00:00.000Z',
+    });
+
+    expect(schedulerCallModel.updateOne).toHaveBeenCalledWith(
+      { callRequestId: 'call-1' },
+      {
+        $set: {
+          callRequestId: 'call-1',
+          email: 'user@example.com',
+          phoneNumber: '+90 555 111 22 33',
+          scheduledAt: new Date('2030-01-01T11:00:00.000Z'),
+          reminderSent: false,
+        },
+      },
+      { upsert: true },
+    );
   });
 
   function createService(): SchedulerCallsService {

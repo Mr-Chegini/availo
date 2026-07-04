@@ -95,6 +95,7 @@ services:
       RABBITMQ_CALLS_EXCHANGE: calls.exchange
       RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE: scheduler.call-approved
       RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE: scheduler.call-canceled
+      RABBITMQ_CALL_RESCHEDULED_SCHEDULER_QUEUE: scheduler.call-rescheduled
     depends_on:
       mongodb:
         condition: service_healthy

@@ -13,6 +13,7 @@ import {
   CallApprovedEvent,
   CallCanceledEvent,
   CallRejectedEvent,
+  CallRescheduledEvent,
   CallRequestedEvent,
   CallRequestResponseDto,
   CallRequestStatus,
@@ -649,7 +650,9 @@ export class CallRequestsService {
     this.validateScheduledAt(scheduledAt, availabilityRules);
     await this.assertSlotAvailable(scheduledAt, callRequest.id);
 
-    if (callRequest.status === CallRequestStatus.SCHEDULED) {
+    const wasScheduled = callRequest.status === CallRequestStatus.SCHEDULED;
+
+    if (wasScheduled) {
       await this.updateScheduledCallRequestCalendarEvent(
         callRequest,
         scheduledAt,
@@ -674,6 +677,10 @@ export class CallRequestsService {
     }
 
     this.metricsService.increment('booking.rescheduled');
+
+    if (wasScheduled) {
+      await this.publishCallRescheduled(callRequest);
+    }
 
     this.logger.log(
       createStructuredLog('call_request.rescheduled', {
@@ -861,6 +868,22 @@ export class CallRequestsService {
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_APPROVED,
+      event,
+    );
+  }
+
+  private async publishCallRescheduled(
+    callRequest: CallRequestDocument,
+  ): Promise<void> {
+    const event: CallRescheduledEvent = {
+      callRequestId: callRequest.id,
+      email: callRequest.email,
+      phoneNumber: callRequest.phoneNumber,
+      scheduledAt: callRequest.scheduledAt.toISOString(),
+    };
+
+    await this.rabbitmqPublisherService.publish(
+      RabbitmqRoutingKey.CALL_RESCHEDULED,
       event,
     );
   }
