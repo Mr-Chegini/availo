@@ -215,7 +215,13 @@ export class CallRequestsService {
     await this.assertSlotAvailable(scheduledAt);
 
     const calendarEvent = await this.calendarProvider.createEvent(
-      this.toCalendarEventInput(input, availabilityRules.durationMinutes),
+      this.toCalendarEventInput(
+        {
+          ...input,
+          calendarOwnerId: input.publicBookingRoute?.hostId,
+        },
+        availabilityRules.durationMinutes,
+      ),
     );
 
     try {
@@ -248,6 +254,7 @@ export class CallRequestsService {
       if (calendarEvent.providerEventId) {
         await this.calendarProvider.cancelEvent({
           providerEventId: calendarEvent.providerEventId,
+          ownerId: input.publicBookingRoute?.hostId,
         });
       }
 
@@ -401,12 +408,17 @@ export class CallRequestsService {
     date: string,
     eventType: EventTypeDocument,
   ): Promise<AvailabilitySlotDto[]> {
-    return this.getAvailabilityWithRules(date, getAvailabilityRules(eventType));
+    return this.getAvailabilityWithRules(
+      date,
+      getAvailabilityRules(eventType),
+      eventType.hostId.toString(),
+    );
   }
 
   private async getAvailabilityWithRules(
     date: string,
     availabilityRules: AvailabilityRules,
+    calendarOwnerId?: string,
   ): Promise<AvailabilitySlotDto[]> {
     const day = DateTime.fromISO(date, {
       zone: availabilityRules.timezone,
@@ -452,6 +464,7 @@ export class CallRequestsService {
     const externalBusySlots = await this.calendarProvider.getBusySlots({
       from: startOfWorkingDay.toUTC().toISO() ?? '',
       to: endOfWorkingDay.toUTC().toISO() ?? '',
+      ownerId: calendarOwnerId,
     });
 
     const slots: AvailabilitySlotDto[] = [];
@@ -507,7 +520,16 @@ export class CallRequestsService {
     const availabilityRules = await this.getDefaultAvailabilityRules();
 
     const calendarEvent = await this.calendarProvider.createEvent(
-      this.toCalendarEventInput(callRequest, availabilityRules.durationMinutes),
+      this.toCalendarEventInput(
+        {
+          email: callRequest.email,
+          phoneNumber: callRequest.phoneNumber,
+          scheduledAt: callRequest.scheduledAt,
+          meetingLocation: callRequest.meetingLocation,
+          calendarOwnerId: callRequest.publicBookingHostId,
+        },
+        availabilityRules.durationMinutes,
+      ),
     );
 
     callRequest.status = CallRequestStatus.SCHEDULED;
@@ -712,6 +734,7 @@ export class CallRequestsService {
           phoneNumber: callRequest.phoneNumber,
           scheduledAt,
           meetingLocation: callRequest.meetingLocation,
+          calendarOwnerId: callRequest.publicBookingHostId,
         },
         durationMinutes,
       ),
@@ -760,6 +783,7 @@ export class CallRequestsService {
     if (callRequest.calendarProviderEventId) {
       await this.calendarProvider.cancelEvent({
         providerEventId: callRequest.calendarProviderEventId,
+        ownerId: callRequest.publicBookingHostId,
       });
     }
 
@@ -835,10 +859,11 @@ export class CallRequestsService {
       phoneNumber: string;
       scheduledAt: Date;
       meetingLocation?: string;
+      calendarOwnerId?: string;
     },
     durationMinutes: number,
   ): CreateCalendarEventInput {
-    return {
+    const calendarEventInput: CreateCalendarEventInput = {
       title: `Call with ${input.email}`,
       startsAt: input.scheduledAt.toISOString(),
       endsAt: this.getCallEndsAt(
@@ -849,6 +874,12 @@ export class CallRequestsService {
       attendeePhoneNumber: input.phoneNumber,
       location: input.meetingLocation,
     };
+
+    if (input.calendarOwnerId) {
+      calendarEventInput.ownerId = input.calendarOwnerId;
+    }
+
+    return calendarEventInput;
   }
 
   private async publishCallApproved(

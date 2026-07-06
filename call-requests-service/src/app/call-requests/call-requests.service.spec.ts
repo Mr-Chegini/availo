@@ -258,6 +258,7 @@ describe('CallRequestsService', () => {
       endsAt: '2030-01-01T09:30:00.000Z',
       attendeeEmail: 'user@example.com',
       attendeePhoneNumber: '+90 555 111 22 33',
+      ownerId: 'host-1',
       location: 'Zoom',
     });
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledOnce();
@@ -402,8 +403,24 @@ describe('CallRequestsService', () => {
     expect(calendarProvider.getBusySlots).toHaveBeenCalledWith({
       from: '2030-01-01T09:00:00.000Z',
       to: '2030-01-01T11:00:00.000Z',
+      ownerId: 'host-1',
     });
     expect(availability).toHaveLength(4);
+  });
+
+  it('uses public booking host owner when approving public requested calls', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.REQUESTED, {
+      publicBookingHostId: 'host-1',
+    });
+    mockFindById(callRequest);
+
+    await service.approve('call-1');
+
+    expect(calendarProvider.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerId: 'host-1',
+      }),
+    );
   });
 
   it('approves requested calls and publishes an approval event', async () => {
@@ -543,6 +560,26 @@ describe('CallRequestsService', () => {
     expect(response.status).toBe(CallRequestStatus.CANCELED);
   });
 
+  it('uses public booking host owner when canceling a tokenized public scheduled call', async () => {
+    const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
+      calendarProviderEventId: 'google-event-1',
+      publicBookingHostId: 'host-1',
+      publicBookingEventTypeSlug: 'intro-call',
+    });
+    mockFindOne(callRequest);
+
+    await service.cancelWithToken(
+      'call-1',
+      'cancel-token',
+      mockEventTypeRules() as never,
+    );
+
+    expect(calendarProvider.cancelEvent).toHaveBeenCalledWith({
+      providerEventId: 'google-event-1',
+      ownerId: 'host-1',
+    });
+  });
+
   it('throws when a cancellation token does not match a call request', async () => {
     mockFindOne(null);
 
@@ -637,6 +674,7 @@ describe('CallRequestsService', () => {
     const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
       calendarProviderEventId: 'google-event-1',
       meetingLocation: 'Zoom',
+      publicBookingHostId: 'host-1',
     });
     mockFindOne(callRequest);
     callRequestModel.exists.mockResolvedValue(null);
@@ -663,6 +701,7 @@ describe('CallRequestsService', () => {
       endsAt: '2030-01-01T09:45:00.000Z',
       attendeeEmail: 'user@example.com',
       attendeePhoneNumber: '+90 555 111 22 33',
+      ownerId: 'host-1',
       location: 'Zoom',
     });
     expect(callRequest.scheduledAt).toEqual(scheduledAt);

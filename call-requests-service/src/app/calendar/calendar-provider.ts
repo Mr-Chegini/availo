@@ -9,6 +9,7 @@ export interface CalendarBusySlot {
 export interface GetBusySlotsInput {
   from: string;
   to: string;
+  ownerId?: string;
 }
 
 export interface CreateCalendarEventInput {
@@ -17,6 +18,7 @@ export interface CreateCalendarEventInput {
   endsAt: string;
   attendeeEmail: string;
   attendeePhoneNumber: string;
+  ownerId?: string;
   location?: string;
 }
 
@@ -26,6 +28,7 @@ export interface CreateCalendarEventResult {
 
 export interface CancelCalendarEventInput {
   providerEventId: string;
+  ownerId?: string;
 }
 
 export interface UpdateCalendarEventInput extends CreateCalendarEventInput {

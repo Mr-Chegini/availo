@@ -110,6 +110,54 @@ describe('GoogleCalendarProvider', () => {
     });
   });
 
+  it('looks up Google connection by input owner id when provided', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        calendars: {
+          primary: {
+            busy: [],
+          },
+        },
+      },
+    });
+    const calendarAccountsService = {
+      findActiveByOwner: vi.fn().mockResolvedValue([
+        {
+          provider: 'google',
+          accessToken: 'protected-google-access-token',
+          primaryCalendarId: 'primary',
+        },
+      ]),
+    };
+    const provider = new GoogleCalendarProvider(
+      calendarAccountsService as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
+      metricsService,
+    );
+
+    await provider.getBusySlots({
+      from: '2026-05-15T07:00:00.000Z',
+      to: '2026-05-15T15:00:00.000Z',
+      ownerId: 'host-1',
+    });
+
+    expect(calendarAccountsService.findActiveByOwner).toHaveBeenCalledWith(
+      'host-1',
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/freeBusy',
+      expect.any(Object),
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+  });
+
   it('refreshes an expired access token before reading Google free/busy slots', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));

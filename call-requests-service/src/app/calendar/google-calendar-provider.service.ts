@@ -66,7 +66,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   ) {}
 
   async getBusySlots(input: GetBusySlotsInput): Promise<CalendarBusySlot[]> {
-    const connection = await this.getConnectionForDefaultOwner();
+    const connection = await this.getConnectionForOwner(input.ownerId);
 
     if (!connection) {
       return [];
@@ -111,7 +111,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   async createEvent(
     input: CreateCalendarEventInput,
   ): Promise<CreateCalendarEventResult> {
-    const connection = await this.getConnectionForDefaultOwner();
+    const connection = await this.getConnectionForOwner(input.ownerId);
 
     if (!connection) {
       return {};
@@ -142,7 +142,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   async updateEvent(input: UpdateCalendarEventInput): Promise<void> {
-    const connection = await this.getConnectionForDefaultOwner();
+    const connection = await this.getConnectionForOwner(input.ownerId);
 
     if (!connection) {
       return;
@@ -168,7 +168,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   }
 
   async cancelEvent(input: CancelCalendarEventInput): Promise<void> {
-    const connection = await this.getConnectionForDefaultOwner();
+    const connection = await this.getConnectionForOwner(input.ownerId);
 
     if (!connection) {
       return;
@@ -192,11 +192,11 @@ export class GoogleCalendarProvider implements CalendarProvider {
     }
   }
 
-  private async getConnectionForDefaultOwner(): Promise<
-    GoogleCalendarConnection | undefined
-  > {
+  private async getConnectionForOwner(
+    ownerId = DEFAULT_OWNER_ID,
+  ): Promise<GoogleCalendarConnection | undefined> {
     const accounts =
-      await this.calendarAccountsService.findActiveByOwner(DEFAULT_OWNER_ID);
+      await this.calendarAccountsService.findActiveByOwner(ownerId);
     const googleAccount = accounts.find(
       (account) => account.provider === 'google' && account.accessToken,
     );
