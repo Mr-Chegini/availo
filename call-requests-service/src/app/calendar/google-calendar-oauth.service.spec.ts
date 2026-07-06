@@ -106,6 +106,43 @@ describe('GoogleCalendarOAuthService', () => {
     expect(body.get('grant_type')).toBe('authorization_code');
   });
 
+  it('refreshes a Google OAuth access token', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        access_token: 'new-google-access-token',
+        expires_in: 3600,
+        token_type: 'Bearer',
+        scope: 'https://www.googleapis.com/auth/calendar.freebusy',
+      },
+    });
+    const service = new GoogleCalendarOAuthService(createConfigService());
+
+    await expect(
+      service.refreshAccessToken('google-refresh-token'),
+    ).resolves.toEqual({
+      accessToken: 'new-google-access-token',
+      refreshToken: undefined,
+      expiresIn: 3600,
+      tokenType: 'Bearer',
+      scope: 'https://www.googleapis.com/auth/calendar.freebusy',
+    });
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://oauth2.googleapis.com/token',
+      expect.any(URLSearchParams),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+    const body = vi.mocked(axios.post).mock.calls[0]?.[1] as URLSearchParams;
+    expect(body.get('client_id')).toBe('google-client-id');
+    expect(body.get('client_secret')).toBe('google-client-secret');
+    expect(body.get('refresh_token')).toBe('google-refresh-token');
+    expect(body.get('grant_type')).toBe('refresh_token');
+  });
+
   it('fetches Google primary calendar identity from the connected account', async () => {
     vi.mocked(axios.get).mockResolvedValueOnce({
       data: {

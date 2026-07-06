@@ -139,6 +139,48 @@ export class GoogleCalendarOAuthService {
     };
   }
 
+  async refreshAccessToken(
+    refreshToken: string,
+  ): Promise<GoogleCalendarTokenResponse> {
+    const clientId = this.configService.get<string>(
+      'GOOGLE_CALENDAR_CLIENT_ID',
+    );
+    const clientSecret = this.configService.get<string>(
+      'GOOGLE_CALENDAR_CLIENT_SECRET',
+    );
+
+    if (!clientId || !clientSecret) {
+      throw new NotImplementedException(
+        'Google Calendar OAuth is not configured yet',
+      );
+    }
+
+    const body = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    });
+
+    const response = await axios.post<GoogleOAuthTokenApiResponse>(
+      GOOGLE_OAUTH_TOKEN_URL,
+      body,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      },
+    );
+
+    return {
+      accessToken: response.data.access_token,
+      refreshToken: response.data.refresh_token,
+      expiresIn: response.data.expires_in,
+      tokenType: response.data.token_type,
+      scope: response.data.scope,
+    };
+  }
+
   async getPrimaryCalendarIdentity(
     accessToken: string,
   ): Promise<GoogleCalendarAccountIdentity> {

@@ -11,12 +11,14 @@ import type {
 } from './calendar-provider';
 import { CalendarAccountsService } from './calendar-accounts.service';
 import { CalendarTokenProtector } from './calendar-token-protector.service';
+import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 import { MetricsService } from '../metrics/metrics.service';
 
 const DEFAULT_OWNER_ID = 'default-admin';
 const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
 const GOOGLE_CALENDAR_API_BASE_URL =
   'https://www.googleapis.com/calendar/v3/calendars';
+const TOKEN_REFRESH_SAFETY_WINDOW_MS = 5 * 60 * 1000;
 
 interface GoogleCalendarConnection {
   accessToken: string;
@@ -59,6 +61,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
   constructor(
     private readonly calendarAccountsService: CalendarAccountsService,
     private readonly calendarTokenProtector: CalendarTokenProtector,
+    private readonly googleCalendarOAuthService: GoogleCalendarOAuthService,
     private readonly metricsService: MetricsService,
   ) {}
 
@@ -202,13 +205,52 @@ export class GoogleCalendarProvider implements CalendarProvider {
       return undefined;
     }
 
+    const accessToken = this.calendarTokenProtector.restore(
+      googleAccount.accessToken,
+    );
+    const refreshToken = googleAccount.refreshToken
+      ? this.calendarTokenProtector.restore(googleAccount.refreshToken)
+      : undefined;
+
+    if (
+      refreshToken &&
+      shouldRefreshAccessToken(googleAccount.tokenExpiresAt)
+    ) {
+      const refreshedToken =
+        await this.googleCalendarOAuthService.refreshAccessToken(refreshToken);
+      const refreshedAccessTokenExpiresAt = new Date(
+        Date.now() + refreshedToken.expiresIn * 1000,
+      );
+      const persistedRefreshToken = refreshedToken.refreshToken ?? refreshToken;
+
+      await this.calendarAccountsService.updateTokens({
+        accountId: googleAccount.id,
+        accessToken: refreshedToken.accessToken,
+        refreshToken: persistedRefreshToken,
+        tokenExpiresAt: refreshedAccessTokenExpiresAt,
+      });
+
+      return {
+        accessToken: refreshedToken.accessToken,
+        primaryCalendarId: googleAccount.primaryCalendarId,
+      };
+    }
+
     return {
-      accessToken: this.calendarTokenProtector.restore(
-        googleAccount.accessToken,
-      ),
+      accessToken,
       primaryCalendarId: googleAccount.primaryCalendarId,
     };
   }
+}
+
+function shouldRefreshAccessToken(tokenExpiresAt: Date | undefined): boolean {
+  if (!tokenExpiresAt) {
+    return false;
+  }
+
+  return (
+    tokenExpiresAt.getTime() <= Date.now() + TOKEN_REFRESH_SAFETY_WINDOW_MS
+  );
 }
 
 function toGoogleCalendarEventInput(

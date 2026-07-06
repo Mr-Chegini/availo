@@ -1,9 +1,13 @@
 import axios from 'axios';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GoogleCalendarProvider } from './google-calendar-provider.service';
 import { MetricsService } from '../metrics/metrics.service';
 
 vi.mock('axios');
+
+const createGoogleCalendarOAuthService = () => ({
+  refreshAccessToken: vi.fn(),
+});
 
 describe('GoogleCalendarProvider', () => {
   let metricsService: MetricsService;
@@ -11,6 +15,10 @@ describe('GoogleCalendarProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     metricsService = new MetricsService();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('reads and maps Google free/busy slots', async () => {
@@ -52,6 +60,7 @@ describe('GoogleCalendarProvider', () => {
     const provider = new GoogleCalendarProvider(
       calendarAccountsService as unknown as never,
       calendarTokenProtector as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -101,6 +110,250 @@ describe('GoogleCalendarProvider', () => {
     });
   });
 
+  it('refreshes an expired access token before reading Google free/busy slots', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        calendars: {
+          primary: {
+            busy: [],
+          },
+        },
+      },
+    });
+    const calendarAccountsService = {
+      findActiveByOwner: vi.fn().mockResolvedValue([
+        {
+          id: 'account-1',
+          provider: 'google',
+          accessToken: 'protected-old-access-token',
+          refreshToken: 'protected-refresh-token',
+          primaryCalendarId: 'primary',
+          tokenExpiresAt: new Date('2029-12-31T23:59:00.000Z'),
+        },
+      ]),
+      updateTokens: vi.fn().mockResolvedValue({ id: 'account-1' }),
+    };
+    const calendarTokenProtector = {
+      restore: vi
+        .fn()
+        .mockReturnValueOnce('old-access-token')
+        .mockReturnValueOnce('google-refresh-token'),
+    };
+    const googleCalendarOAuthService = {
+      refreshAccessToken: vi.fn().mockResolvedValue({
+        accessToken: 'new-access-token',
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+      }),
+    };
+    const provider = new GoogleCalendarProvider(
+      calendarAccountsService as unknown as never,
+      calendarTokenProtector as unknown as never,
+      googleCalendarOAuthService as unknown as never,
+      metricsService,
+    );
+
+    await expect(
+      provider.getBusySlots({
+        from: '2030-01-01T01:00:00.000Z',
+        to: '2030-01-01T02:00:00.000Z',
+      }),
+    ).resolves.toEqual([]);
+
+    expect(googleCalendarOAuthService.refreshAccessToken).toHaveBeenCalledWith(
+      'google-refresh-token',
+    );
+    expect(calendarAccountsService.updateTokens).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      accessToken: 'new-access-token',
+      refreshToken: 'google-refresh-token',
+      tokenExpiresAt: new Date('2030-01-01T01:00:00.000Z'),
+    });
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/freeBusy',
+      expect.any(Object),
+      {
+        headers: {
+          Authorization: 'Bearer new-access-token',
+        },
+      },
+    );
+    vi.useRealTimers();
+  });
+
+  it('persists a rotated refresh token when Google returns one during refresh', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    vi.mocked(axios.post).mockResolvedValueOnce({
+      data: {
+        id: 'google-event-1',
+      },
+    });
+    const calendarAccountsService = {
+      findActiveByOwner: vi.fn().mockResolvedValue([
+        {
+          id: 'account-1',
+          provider: 'google',
+          accessToken: 'protected-old-access-token',
+          refreshToken: 'protected-old-refresh-token',
+          primaryCalendarId: 'primary',
+          tokenExpiresAt: new Date('2030-01-01T00:04:00.000Z'),
+        },
+      ]),
+      updateTokens: vi.fn().mockResolvedValue({ id: 'account-1' }),
+    };
+    const googleCalendarOAuthService = {
+      refreshAccessToken: vi.fn().mockResolvedValue({
+        accessToken: 'new-access-token',
+        refreshToken: 'rotated-refresh-token',
+        expiresIn: 1800,
+        tokenType: 'Bearer',
+      }),
+    };
+    const provider = new GoogleCalendarProvider(
+      calendarAccountsService as unknown as never,
+      {
+        restore: vi
+          .fn()
+          .mockReturnValueOnce('old-access-token')
+          .mockReturnValueOnce('old-refresh-token'),
+      } as unknown as never,
+      googleCalendarOAuthService as unknown as never,
+      metricsService,
+    );
+
+    await provider.createEvent({
+      title: 'Call with user@example.com',
+      startsAt: '2030-01-01T01:00:00.000Z',
+      endsAt: '2030-01-01T01:30:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+    });
+
+    expect(calendarAccountsService.updateTokens).toHaveBeenCalledWith({
+      accountId: 'account-1',
+      accessToken: 'new-access-token',
+      refreshToken: 'rotated-refresh-token',
+      tokenExpiresAt: new Date('2030-01-01T00:30:00.000Z'),
+    });
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events',
+      expect.any(Object),
+      {
+        headers: {
+          Authorization: 'Bearer new-access-token',
+        },
+      },
+    );
+    vi.useRealTimers();
+  });
+
+  it('uses the stored access token when it is fresh', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    vi.mocked(axios.patch).mockResolvedValueOnce({});
+    const googleCalendarOAuthService = {
+      refreshAccessToken: vi.fn(),
+    };
+    const calendarAccountsService = {
+      findActiveByOwner: vi.fn().mockResolvedValue([
+        {
+          id: 'account-1',
+          provider: 'google',
+          accessToken: 'protected-google-access-token',
+          refreshToken: 'protected-refresh-token',
+          primaryCalendarId: 'primary',
+          tokenExpiresAt: new Date('2030-01-01T00:06:00.000Z'),
+        },
+      ]),
+      updateTokens: vi.fn(),
+    };
+    const provider = new GoogleCalendarProvider(
+      calendarAccountsService as unknown as never,
+      {
+        restore: vi
+          .fn()
+          .mockReturnValueOnce('google-access-token')
+          .mockReturnValueOnce('google-refresh-token'),
+      } as unknown as never,
+      googleCalendarOAuthService as unknown as never,
+      metricsService,
+    );
+
+    await provider.updateEvent({
+      providerEventId: 'google-event-1',
+      title: 'Call with user@example.com',
+      startsAt: '2030-01-01T01:00:00.000Z',
+      endsAt: '2030-01-01T01:30:00.000Z',
+      attendeeEmail: 'user@example.com',
+      attendeePhoneNumber: '+90 555 111 22 33',
+    });
+
+    expect(
+      googleCalendarOAuthService.refreshAccessToken,
+    ).not.toHaveBeenCalled();
+    expect(calendarAccountsService.updateTokens).not.toHaveBeenCalled();
+    expect(axios.patch).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-1',
+      expect.any(Object),
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+    vi.useRealTimers();
+  });
+
+  it('uses the stored access token when an expired account has no refresh token', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    vi.mocked(axios.delete).mockResolvedValueOnce({});
+    const googleCalendarOAuthService = {
+      refreshAccessToken: vi.fn(),
+    };
+    const calendarAccountsService = {
+      findActiveByOwner: vi.fn().mockResolvedValue([
+        {
+          id: 'account-1',
+          provider: 'google',
+          accessToken: 'protected-google-access-token',
+          primaryCalendarId: 'primary',
+          tokenExpiresAt: new Date('2029-12-31T23:59:00.000Z'),
+        },
+      ]),
+      updateTokens: vi.fn(),
+    };
+    const provider = new GoogleCalendarProvider(
+      calendarAccountsService as unknown as never,
+      {
+        restore: vi.fn().mockReturnValue('google-access-token'),
+      } as unknown as never,
+      googleCalendarOAuthService as unknown as never,
+      metricsService,
+    );
+
+    await provider.cancelEvent({
+      providerEventId: 'google-event-1',
+    });
+
+    expect(
+      googleCalendarOAuthService.refreshAccessToken,
+    ).not.toHaveBeenCalled();
+    expect(calendarAccountsService.updateTokens).not.toHaveBeenCalled();
+    expect(axios.delete).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-1',
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+    vi.useRealTimers();
+  });
+
   it('increments free/busy failure metrics when Google free/busy fails', async () => {
     vi.mocked(axios.post).mockRejectedValueOnce(new Error('Google down'));
     const provider = new GoogleCalendarProvider(
@@ -116,6 +369,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -146,6 +400,7 @@ describe('GoogleCalendarProvider', () => {
     const provider = new GoogleCalendarProvider(
       calendarAccountsService as unknown as never,
       calendarTokenProtector as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -178,6 +433,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -236,6 +492,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -262,6 +519,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -296,6 +554,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -332,6 +591,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -391,6 +651,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -418,6 +679,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -449,6 +711,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -486,6 +749,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn().mockReturnValue('google-access-token'),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
@@ -508,6 +772,7 @@ describe('GoogleCalendarProvider', () => {
       {
         restore: vi.fn(),
       } as unknown as never,
+      createGoogleCalendarOAuthService() as unknown as never,
       metricsService,
     );
 
