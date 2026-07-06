@@ -1,12 +1,16 @@
-import { NotImplementedException } from '@nestjs/common';
+import { BadRequestException, NotImplementedException } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 
 vi.mock('axios');
 
 describe('GoogleCalendarOAuthService', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   const createConfigService = (overrides: Record<string, string> = {}) =>
     ({
       get: vi.fn((key: string) => {
@@ -100,6 +104,42 @@ describe('GoogleCalendarOAuthService', () => {
       'https://availo.example.com/api/calendar-connections/google/callback',
     );
     expect(body.get('grant_type')).toBe('authorization_code');
+  });
+
+  it('fetches Google primary calendar identity from the connected account', async () => {
+    vi.mocked(axios.get).mockResolvedValueOnce({
+      data: {
+        id: 'owner-1@gmail.com',
+      },
+    });
+    const service = new GoogleCalendarOAuthService(createConfigService());
+
+    await expect(
+      service.getPrimaryCalendarIdentity('google-access-token'),
+    ).resolves.toEqual({
+      providerAccountId: 'owner-1@gmail.com',
+      primaryCalendarId: 'owner-1@gmail.com',
+    });
+
+    expect(axios.get).toHaveBeenCalledWith(
+      'https://www.googleapis.com/calendar/v3/users/me/calendarList/primary',
+      {
+        headers: {
+          Authorization: 'Bearer google-access-token',
+        },
+      },
+    );
+  });
+
+  it('rejects a Google primary calendar response without an id', async () => {
+    vi.mocked(axios.get).mockResolvedValueOnce({
+      data: {},
+    });
+    const service = new GoogleCalendarOAuthService(createConfigService());
+
+    await expect(
+      service.getPrimaryCalendarIdentity('google-access-token'),
+    ).rejects.toThrow(BadRequestException);
   });
 
   it('throws when OAuth config is missing', () => {

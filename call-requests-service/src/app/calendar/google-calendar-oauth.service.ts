@@ -1,4 +1,8 @@
-import { Injectable, NotImplementedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotImplementedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { createHmac, timingSafeEqual } from 'crypto';
@@ -6,6 +10,8 @@ import { createHmac, timingSafeEqual } from 'crypto';
 const GOOGLE_OAUTH_AUTHORIZATION_URL =
   'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_OAUTH_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_CALENDAR_PRIMARY_CALENDAR_URL =
+  'https://www.googleapis.com/calendar/v3/users/me/calendarList/primary';
 
 const GOOGLE_CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/calendar.events',
@@ -25,12 +31,21 @@ export interface GoogleCalendarTokenResponse {
   scope?: string;
 }
 
+export interface GoogleCalendarAccountIdentity {
+  providerAccountId: string;
+  primaryCalendarId: string;
+}
+
 interface GoogleOAuthTokenApiResponse {
   access_token: string;
   refresh_token?: string;
   expires_in: number;
   token_type: string;
   scope?: string;
+}
+
+interface GoogleCalendarPrimaryCalendarApiResponse {
+  id?: string;
 }
 
 @Injectable()
@@ -121,6 +136,30 @@ export class GoogleCalendarOAuthService {
       expiresIn: response.data.expires_in,
       tokenType: response.data.token_type,
       scope: response.data.scope,
+    };
+  }
+
+  async getPrimaryCalendarIdentity(
+    accessToken: string,
+  ): Promise<GoogleCalendarAccountIdentity> {
+    const response = await axios.get<GoogleCalendarPrimaryCalendarApiResponse>(
+      GOOGLE_CALENDAR_PRIMARY_CALENDAR_URL,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+
+    if (!response.data.id) {
+      throw new BadRequestException(
+        'Google Calendar primary calendar id was not returned',
+      );
+    }
+
+    return {
+      providerAccountId: response.data.id,
+      primaryCalendarId: response.data.id,
     };
   }
 

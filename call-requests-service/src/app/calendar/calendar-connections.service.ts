@@ -23,6 +23,9 @@ export interface StartCalendarConnectionResponseDto {
 
 export interface GoogleCalendarCallbackResponseDto {
   ownerId: string;
+  provider: 'google';
+  providerAccountId: string;
+  primaryCalendarId: string;
   message: string;
 }
 
@@ -63,10 +66,10 @@ export class CalendarConnectionsService {
     }
   }
 
-  handleGoogleCallback(
+  async handleGoogleCallback(
     code: string | undefined,
     state: string | undefined,
-  ): GoogleCalendarCallbackResponseDto {
+  ): Promise<GoogleCalendarCallbackResponseDto> {
     if (!code) {
       throw new BadRequestException('Google Calendar OAuth code is required');
     }
@@ -75,13 +78,36 @@ export class CalendarConnectionsService {
       throw new BadRequestException('Google Calendar OAuth state is required');
     }
 
-    try {
-      const payload = this.googleCalendarOAuthService.verifyState(state);
+    const payload = this.verifyGoogleCallbackState(state);
+    const tokenResponse =
+      await this.googleCalendarOAuthService.exchangeAuthorizationCode(code);
+    const calendarIdentity =
+      await this.googleCalendarOAuthService.getPrimaryCalendarIdentity(
+        tokenResponse.accessToken,
+      );
 
-      return {
-        ownerId: payload.ownerId,
-        message: 'Google Calendar OAuth callback verified',
-      };
+    await this.calendarAccountsService.upsertConnectedAccount({
+      ownerId: payload.ownerId,
+      provider: 'google',
+      providerAccountId: calendarIdentity.providerAccountId,
+      primaryCalendarId: calendarIdentity.primaryCalendarId,
+      accessToken: tokenResponse.accessToken,
+      refreshToken: tokenResponse.refreshToken,
+      tokenExpiresAt: new Date(Date.now() + tokenResponse.expiresIn * 1000),
+    });
+
+    return {
+      ownerId: payload.ownerId,
+      provider: 'google',
+      providerAccountId: calendarIdentity.providerAccountId,
+      primaryCalendarId: calendarIdentity.primaryCalendarId,
+      message: 'Google Calendar connected',
+    };
+  }
+
+  private verifyGoogleCallbackState(state: string) {
+    try {
+      return this.googleCalendarOAuthService.verifyState(state);
     } catch (error) {
       if (error instanceof NotImplementedException) {
         throw error;

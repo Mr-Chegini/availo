@@ -17,22 +17,28 @@ describe('CalendarConnectionsController', () => {
     );
   });
 
-  it('passes Google callback query params to the connection service', () => {
+  it('passes Google callback query params to the connection service', async () => {
     const calendarConnectionsService = {
-      handleGoogleCallback: vi.fn().mockReturnValue({
+      handleGoogleCallback: vi.fn().mockResolvedValue({
         ownerId: 'owner-1',
-        message: 'Google Calendar OAuth callback verified',
+        provider: 'google',
+        providerAccountId: 'owner-1@gmail.com',
+        primaryCalendarId: 'owner-1@gmail.com',
+        message: 'Google Calendar connected',
       }),
     };
     const controller = new CalendarConnectionsController(
       calendarConnectionsService as unknown as never,
     );
 
-    expect(
+    await expect(
       controller.handleGoogleCallback('authorization-code', 'signed-state'),
-    ).toEqual({
+    ).resolves.toEqual({
       ownerId: 'owner-1',
-      message: 'Google Calendar OAuth callback verified',
+      provider: 'google',
+      providerAccountId: 'owner-1@gmail.com',
+      primaryCalendarId: 'owner-1@gmail.com',
+      message: 'Google Calendar connected',
     });
     expect(
       calendarConnectionsService.handleGoogleCallback,
