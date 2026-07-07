@@ -23,17 +23,22 @@ type TestCallRequestDocument = Pick<
   | 'email'
   | 'phoneNumber'
   | 'scheduledAt'
+  | 'durationMinutes'
   | 'status'
   | 'adminNote'
   | 'cancellationToken'
   | 'calendarProviderEventId'
   | 'meetingLocation'
   | 'publicBookingHostId'
+  | 'publicBookingHostSlug'
   | 'publicBookingEventTypeSlug'
   | 'createdAt'
   | 'updatedAt'
   | 'save'
->;
+> & {
+  hostId?: string;
+  eventTypeId?: string;
+};
 
 describe('CallRequestsService', () => {
   let callRequestModel: {
@@ -54,6 +59,7 @@ describe('CallRequestsService', () => {
   };
   let eventTypesService: {
     findDefaultActiveEventType: ReturnType<typeof vi.fn>;
+    getById: ReturnType<typeof vi.fn>;
   };
   let metricsService: {
     increment: ReturnType<typeof vi.fn>;
@@ -79,10 +85,12 @@ describe('CallRequestsService', () => {
     };
     eventTypesService = {
       findDefaultActiveEventType: vi.fn().mockResolvedValue(null),
+      getById: vi.fn().mockResolvedValue(mockEventTypeRules()),
     };
     metricsService = {
       increment: vi.fn(),
     };
+    mockAvailabilityCallRequests([]);
 
     service = new CallRequestsService(
       callRequestModel as unknown as Model<CallRequestDocument>,
@@ -147,11 +155,12 @@ describe('CallRequestsService', () => {
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED, {
       scheduledAt,
       meetingLocation: 'Google Meet',
+      hostId: 'host-1',
+      eventTypeId: 'event-type-1',
       publicBookingHostId: 'host-1',
       publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
     });
-    callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
 
     const response = await service.createForEventType(
@@ -170,19 +179,32 @@ describe('CallRequestsService', () => {
     );
 
     expect(eventTypesService.findDefaultActiveEventType).not.toHaveBeenCalled();
-    expect(callRequestModel.exists).toHaveBeenCalledWith({
-      scheduledAt,
+    expect(callRequestModel.find).toHaveBeenCalledWith({
+      scheduledAt: {
+        $lt: new Date('2030-01-01T09:30:00.000Z'),
+      },
       status: {
         $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
       },
+      $or: [
+        { hostId: 'host-1' },
+        { publicBookingHostId: 'host-1' },
+        {
+          hostId: { $exists: false },
+          publicBookingHostId: { $exists: false },
+        },
+      ],
     });
     expect(callRequestModel.create).toHaveBeenCalledWith({
       email: 'user@example.com',
       phoneNumber: '+90 555 111 22 33',
       scheduledAt,
+      durationMinutes: 30,
       status: CallRequestStatus.REQUESTED,
       cancellationToken: expect.any(String),
       meetingLocation: 'Google Meet',
+      hostId: 'host-1',
+      eventTypeId: 'event-type-1',
       publicBookingHostId: 'host-1',
       publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
@@ -196,7 +218,13 @@ describe('CallRequestsService', () => {
         callRequestId: 'call-1',
         email: 'user@example.com',
         scheduledAt: '2030-01-01T09:00:00.000Z',
+        hostId: 'host-1',
+        eventTypeId: 'event-type-1',
+        hostSlug: 'host-1',
+        eventTypeSlug: 'intro-call',
         publicBooking: {
+          hostId: 'host-1',
+          eventTypeId: 'event-type-1',
           hostSlug: 'host-1',
           eventTypeSlug: 'intro-call',
           cancellationToken: 'cancel-token',
@@ -214,11 +242,12 @@ describe('CallRequestsService', () => {
     const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED, {
       scheduledAt,
       calendarProviderEventId: 'google-event-1',
+      hostId: 'host-1',
+      eventTypeId: 'event-type-1',
       publicBookingHostId: 'host-1',
       publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
     });
-    callRequestModel.exists.mockResolvedValue(null);
     callRequestModel.create.mockResolvedValue(callRequest);
     calendarProvider.createEvent.mockResolvedValueOnce({
       providerEventId: 'google-event-1',
@@ -244,10 +273,13 @@ describe('CallRequestsService', () => {
       email: 'user@example.com',
       phoneNumber: '+90 555 111 22 33',
       scheduledAt,
+      durationMinutes: 30,
       status: CallRequestStatus.SCHEDULED,
       cancellationToken: expect.any(String),
       calendarProviderEventId: 'google-event-1',
       meetingLocation: 'Zoom',
+      hostId: 'host-1',
+      eventTypeId: 'event-type-1',
       publicBookingHostId: 'host-1',
       publicBookingHostSlug: 'host-1',
       publicBookingEventTypeSlug: 'intro-call',
@@ -269,7 +301,13 @@ describe('CallRequestsService', () => {
         email: 'user@example.com',
         phoneNumber: '+90 555 111 22 33',
         scheduledAt: '2030-01-01T09:00:00.000Z',
+        hostId: 'host-1',
+        eventTypeId: 'event-type-1',
+        hostSlug: 'host-1',
+        eventTypeSlug: 'intro-call',
         publicBooking: {
+          hostId: 'host-1',
+          eventTypeId: 'event-type-1',
           hostSlug: 'host-1',
           eventTypeSlug: 'intro-call',
           cancellationToken: 'cancel-token',
@@ -362,7 +400,6 @@ describe('CallRequestsService', () => {
 
     expect(callRequestModel.find).toHaveBeenCalledWith({
       scheduledAt: {
-        $gte: new Date('2030-01-01T09:00:00.000Z'),
         $lt: new Date('2030-01-01T11:00:00.000Z'),
       },
       status: {
@@ -607,8 +644,16 @@ describe('CallRequestsService', () => {
     expect(callRequestModel.findOne).toHaveBeenCalledWith({
       _id: 'call-1',
       cancellationToken: 'cancel-token',
-      publicBookingHostId: 'host-1',
-      publicBookingEventTypeSlug: 'intro-call',
+      $or: [
+        {
+          hostId: 'host-1',
+          eventTypeId: 'event-type-1',
+        },
+        {
+          publicBookingHostId: 'host-1',
+          publicBookingEventTypeSlug: 'intro-call',
+        },
+      ],
     });
     expect(response).toEqual(
       expect.objectContaining({
@@ -627,7 +672,6 @@ describe('CallRequestsService', () => {
     const scheduledAt = new Date('2030-01-01T09:00:00.000Z');
     const callRequest = mockCallRequest(CallRequestStatus.REQUESTED);
     mockFindOne(callRequest);
-    callRequestModel.exists.mockResolvedValue(null);
 
     const response = await service.rescheduleWithToken(
       'call-1',
@@ -646,17 +690,35 @@ describe('CallRequestsService', () => {
     expect(callRequestModel.findOne).toHaveBeenCalledWith({
       _id: 'call-1',
       cancellationToken: 'cancel-token',
-      publicBookingHostId: 'host-1',
-      publicBookingEventTypeSlug: 'intro-call',
+      $or: [
+        {
+          hostId: 'host-1',
+          eventTypeId: 'event-type-1',
+        },
+        {
+          publicBookingHostId: 'host-1',
+          publicBookingEventTypeSlug: 'intro-call',
+        },
+      ],
     });
-    expect(callRequestModel.exists).toHaveBeenCalledWith({
-      scheduledAt,
+    expect(callRequestModel.find).toHaveBeenCalledWith({
+      scheduledAt: {
+        $lt: new Date('2030-01-01T09:30:00.000Z'),
+      },
       status: {
         $in: [CallRequestStatus.REQUESTED, CallRequestStatus.SCHEDULED],
       },
       _id: {
         $ne: 'call-1',
       },
+      $or: [
+        { hostId: 'host-1' },
+        { publicBookingHostId: 'host-1' },
+        {
+          hostId: { $exists: false },
+          publicBookingHostId: { $exists: false },
+        },
+      ],
     });
     expect(callRequest.scheduledAt).toEqual(scheduledAt);
     expect(calendarProvider.updateEvent).not.toHaveBeenCalled();
@@ -677,7 +739,6 @@ describe('CallRequestsService', () => {
       publicBookingHostId: 'host-1',
     });
     mockFindOne(callRequest);
-    callRequestModel.exists.mockResolvedValue(null);
 
     const response = await service.rescheduleWithToken(
       'call-1',
@@ -708,12 +769,13 @@ describe('CallRequestsService', () => {
     expect(callRequest.save).toHaveBeenCalledOnce();
     expect(rabbitmqPublisherService.publish).toHaveBeenCalledWith(
       RabbitmqRoutingKey.CALL_RESCHEDULED,
-      {
+      expect.objectContaining({
         callRequestId: 'call-1',
         email: 'user@example.com',
         phoneNumber: '+90 555 111 22 33',
         scheduledAt: '2030-01-01T09:00:00.000Z',
-      },
+        hostId: 'host-1',
+      }),
     );
     expect(metricsService.increment).toHaveBeenCalledWith(
       'booking.rescheduled',
@@ -725,7 +787,6 @@ describe('CallRequestsService', () => {
   it('throws when rescheduling a scheduled call without a calendar event', async () => {
     const callRequest = mockCallRequest(CallRequestStatus.SCHEDULED);
     mockFindOne(callRequest);
-    callRequestModel.exists.mockResolvedValue(null);
 
     await expect(
       service.rescheduleWithToken(
@@ -826,8 +887,11 @@ function mockCallRequest(
   status: CallRequestStatus,
   options: {
     scheduledAt?: Date;
+    durationMinutes?: number;
     calendarProviderEventId?: string;
     meetingLocation?: string;
+    hostId?: string;
+    eventTypeId?: string;
     publicBookingHostId?: string;
     publicBookingHostSlug?: string;
     publicBookingEventTypeSlug?: string;
@@ -839,11 +903,14 @@ function mockCallRequest(
     email: 'user@example.com',
     phoneNumber: '+90 555 111 22 33',
     scheduledAt,
+    durationMinutes: options.durationMinutes,
     status,
     adminNote: undefined,
     cancellationToken: 'cancel-token',
     calendarProviderEventId: options.calendarProviderEventId,
     meetingLocation: options.meetingLocation,
+    hostId: options.hostId,
+    eventTypeId: options.eventTypeId,
     publicBookingHostId: options.publicBookingHostId,
     publicBookingHostSlug: options.publicBookingHostSlug,
     publicBookingEventTypeSlug: options.publicBookingEventTypeSlug,
@@ -868,11 +935,15 @@ function mockEventTypeRules(
     maxFutureDays: number;
     requiresApproval: boolean;
     meetingLocation: string;
+    id: string;
+    _id: string;
     hostId: string;
     slug: string;
   }> = {},
 ) {
   return {
+    id: 'event-type-1',
+    _id: 'event-type-1',
     hostId: 'host-1',
     slug: 'intro-call',
     durationMinutes: 30,

@@ -17,10 +17,16 @@ export interface CallRequestedEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+  hostId?: string;
+  eventTypeId?: string;
+  hostSlug?: string;
+  eventTypeSlug?: string;
   publicBooking?: PublicBookingEventContext;
 }
 
 export interface PublicBookingEventContext {
+  hostId?: string;
+  eventTypeId?: string;
   hostSlug: string;
   eventTypeSlug: string;
   cancellationToken: string;
@@ -61,18 +67,30 @@ export interface CallApprovedEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+  hostId?: string;
+  eventTypeId?: string;
+  hostSlug?: string;
+  eventTypeSlug?: string;
   publicBooking?: PublicBookingEventContext;
 }
 
 export interface CallRejectedEvent {
   callRequestId: string;
   email: string;
+  hostId?: string;
+  eventTypeId?: string;
+  hostSlug?: string;
+  eventTypeSlug?: string;
 }
 
 export interface CallCanceledEvent {
   callRequestId: string;
   email: string;
   scheduledAt: string;
+  hostId?: string;
+  eventTypeId?: string;
+  hostSlug?: string;
+  eventTypeSlug?: string;
 }
 
 export interface CallRescheduledEvent {
@@ -80,6 +98,10 @@ export interface CallRescheduledEvent {
   email: string;
   phoneNumber: string;
   scheduledAt: string;
+  hostId?: string;
+  eventTypeId?: string;
+  hostSlug?: string;
+  eventTypeSlug?: string;
 }
 
 export interface CallReminderEvent {

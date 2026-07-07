@@ -49,6 +49,8 @@ import { createStructuredLog } from '../logging/structured-log';
 import { MetricsService } from '../metrics/metrics.service';
 
 interface AvailabilityRules {
+  hostId?: string;
+  eventTypeId?: string;
   timezone: string;
   workdayStartHour: number;
   workdayEndHour: number;
@@ -61,6 +63,7 @@ interface AvailabilityRules {
 
 interface PublicBookingRouteContext {
   hostId: string;
+  eventTypeId: string;
   hostSlug: string;
   eventTypeSlug: string;
 }
@@ -159,12 +162,17 @@ export class CallRequestsService {
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
 
-    await this.assertSlotAvailable(scheduledAt);
+    await this.assertTimeRangeAvailable({
+      scheduledAt,
+      durationMinutes: availabilityRules.durationMinutes,
+      hostId: input.publicBookingRoute?.hostId,
+    });
 
     const callRequest = await this.createCallRequest({
       email,
       phoneNumber,
       scheduledAt,
+      durationMinutes: availabilityRules.durationMinutes,
       meetingLocation: input.meetingLocation,
       publicBookingRoute: input.publicBookingRoute,
     });
@@ -175,6 +183,7 @@ export class CallRequestsService {
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    Object.assign(event, getBookingOwnershipEventContext(callRequest));
     const publicBooking = toPublicBookingEventContext(callRequest);
 
     if (publicBooking) {
@@ -212,7 +221,11 @@ export class CallRequestsService {
     const { email, phoneNumber, scheduledAt } = input;
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
-    await this.assertSlotAvailable(scheduledAt);
+    await this.assertTimeRangeAvailable({
+      scheduledAt,
+      durationMinutes: availabilityRules.durationMinutes,
+      hostId: input.publicBookingRoute?.hostId,
+    });
 
     const calendarEvent = await this.calendarProvider.createEvent(
       this.toCalendarEventInput(
@@ -229,6 +242,7 @@ export class CallRequestsService {
         email,
         phoneNumber,
         scheduledAt,
+        durationMinutes: availabilityRules.durationMinutes,
         meetingLocation: input.meetingLocation,
         publicBookingRoute: input.publicBookingRoute,
         status: CallRequestStatus.SCHEDULED,
@@ -312,35 +326,39 @@ export class CallRequestsService {
     return scheduledAt;
   }
 
-  private async assertSlotAvailable(
-    scheduledAt: Date,
-    excludeCallRequestId?: string,
-  ): Promise<void> {
-    const query: {
-      scheduledAt: Date;
-      status: {
-        $in: CallRequestStatus[];
-      };
-      _id?: {
-        $ne: string;
-      };
-    } = {
-      scheduledAt,
-      status: {
-        $in: ACTIVE_RESERVATION_STATUSES,
-      },
-    };
+  private async assertTimeRangeAvailable(input: {
+    scheduledAt: Date;
+    durationMinutes: number;
+    hostId?: string;
+    excludeCallRequestId?: string;
+  }): Promise<void> {
+    const startsAt = DateTime.fromJSDate(input.scheduledAt).toUTC();
+    const endsAt = startsAt.plus({ minutes: input.durationMinutes });
+    const query = buildActiveReservationLookupQuery({
+      startsAt: startsAt.toJSDate(),
+      endsAt: endsAt.toJSDate(),
+      hostId: input.hostId,
+      excludeCallRequestId: input.excludeCallRequestId,
+    });
 
-    if (excludeCallRequestId) {
-      query._id = {
-        $ne: excludeCallRequestId,
-      };
-    }
+    const existingCallRequests = await this.callRequestModel
+      .find(query)
+      .select('scheduledAt durationMinutes')
+      .lean();
 
-    const existingCallRequest = await this.callRequestModel.exists(query);
+    const hasConflict = existingCallRequests.some((callRequest) => {
+      const existingStartsAt = DateTime.fromJSDate(
+        callRequest.scheduledAt,
+      ).toUTC();
+      const existingEndsAt = existingStartsAt.plus({
+        minutes: callRequest.durationMinutes ?? input.durationMinutes,
+      });
 
-    if (existingCallRequest) {
-      throw new BadRequestException('This time slot is already reserved');
+      return rangesOverlap(startsAt, endsAt, existingStartsAt, existingEndsAt);
+    });
+
+    if (hasConflict) {
+      throw new ConflictException('This time slot is already reserved');
     }
   }
 
@@ -348,6 +366,7 @@ export class CallRequestsService {
     email: string;
     phoneNumber: string;
     scheduledAt: Date;
+    durationMinutes?: number;
     meetingLocation?: string;
     publicBookingRoute?: PublicBookingRouteContext;
     status?: CallRequestStatus;
@@ -358,10 +377,13 @@ export class CallRequestsService {
         email: string;
         phoneNumber: string;
         scheduledAt: Date;
+        durationMinutes?: number;
         status: CallRequestStatus;
         cancellationToken: string;
         calendarProviderEventId?: string;
         meetingLocation?: string;
+        hostId?: string;
+        eventTypeId?: string;
         publicBookingHostId?: string;
         publicBookingHostSlug?: string;
         publicBookingEventTypeSlug?: string;
@@ -369,6 +391,7 @@ export class CallRequestsService {
         email: dto.email,
         phoneNumber: dto.phoneNumber,
         scheduledAt: dto.scheduledAt,
+        durationMinutes: dto.durationMinutes,
         status: dto.status ?? CallRequestStatus.REQUESTED,
         cancellationToken: createCancellationToken(),
       };
@@ -382,6 +405,8 @@ export class CallRequestsService {
       }
 
       if (dto.publicBookingRoute) {
+        createInput.hostId = dto.publicBookingRoute.hostId;
+        createInput.eventTypeId = dto.publicBookingRoute.eventTypeId;
         createInput.publicBookingHostId = dto.publicBookingRoute.hostId;
         createInput.publicBookingHostSlug = dto.publicBookingRoute.hostSlug;
         createInput.publicBookingEventTypeSlug =
@@ -391,7 +416,7 @@ export class CallRequestsService {
       return await this.callRequestModel.create(createInput);
     } catch (error) {
       if (isDuplicateKeyError(error)) {
-        throw new BadRequestException('This time slot is already reserved');
+        throw new ConflictException('This time slot is already reserved');
       }
 
       throw error;
@@ -408,17 +433,12 @@ export class CallRequestsService {
     date: string,
     eventType: EventTypeDocument,
   ): Promise<AvailabilitySlotDto[]> {
-    return this.getAvailabilityWithRules(
-      date,
-      getAvailabilityRules(eventType),
-      eventType.hostId.toString(),
-    );
+    return this.getAvailabilityWithRules(date, getAvailabilityRules(eventType));
   }
 
   private async getAvailabilityWithRules(
     date: string,
     availabilityRules: AvailabilityRules,
-    calendarOwnerId?: string,
   ): Promise<AvailabilitySlotDto[]> {
     const day = DateTime.fromISO(date, {
       zone: availabilityRules.timezone,
@@ -449,23 +469,28 @@ export class CallRequestsService {
     );
 
     const existingCallRequests = await this.callRequestModel
-      .find({
-        scheduledAt: {
-          $gte: startOfWorkingDay.toUTC().toJSDate(),
-          $lt: endOfWorkingDay.toUTC().toJSDate(),
-        },
-        status: {
-          $in: ACTIVE_RESERVATION_STATUSES,
-        },
-      })
-      .select('scheduledAt')
+      .find(
+        buildActiveReservationLookupQuery({
+          startsAt: startOfWorkingDay.toUTC().toJSDate(),
+          endsAt: endOfWorkingDay.toUTC().toJSDate(),
+          hostId: availabilityRules.hostId,
+        }),
+      )
+      .select('scheduledAt durationMinutes')
       .lean();
 
-    const externalBusySlots = await this.calendarProvider.getBusySlots({
+    const busySlotsInput = {
       from: startOfWorkingDay.toUTC().toISO() ?? '',
       to: endOfWorkingDay.toUTC().toISO() ?? '',
-      ownerId: calendarOwnerId,
-    });
+      ownerId: availabilityRules.hostId,
+    };
+
+    if (!busySlotsInput.ownerId) {
+      delete busySlotsInput.ownerId;
+    }
+
+    const externalBusySlots =
+      await this.calendarProvider.getBusySlots(busySlotsInput);
 
     const slots: AvailabilitySlotDto[] = [];
 
@@ -485,7 +510,7 @@ export class CallRequestsService {
           slotEndsAt,
           localReservations: existingCallRequests,
           externalBusySlots,
-          reservationDurationMinutes: availabilityRules.durationMinutes,
+          fallbackReservationDurationMinutes: availabilityRules.durationMinutes,
         }),
       });
 
@@ -517,7 +542,8 @@ export class CallRequestsService {
       throw new ConflictException('Only requested calls can be approved');
     }
 
-    const availabilityRules = await this.getDefaultAvailabilityRules();
+    const availabilityRules =
+      await this.getAvailabilityRulesForExistingBooking(callRequest);
 
     const calendarEvent = await this.calendarProvider.createEvent(
       this.toCalendarEventInput(
@@ -525,8 +551,9 @@ export class CallRequestsService {
           email: callRequest.email,
           phoneNumber: callRequest.phoneNumber,
           scheduledAt: callRequest.scheduledAt,
-          meetingLocation: callRequest.meetingLocation,
-          calendarOwnerId: callRequest.publicBookingHostId,
+          meetingLocation:
+            callRequest.meetingLocation ?? availabilityRules.meetingLocation,
+          calendarOwnerId: getCalendarOwnerId(callRequest),
         },
         availabilityRules.durationMinutes,
       ),
@@ -570,6 +597,7 @@ export class CallRequestsService {
       callRequestId: callRequest.id,
       email: callRequest.email,
     };
+    Object.assign(event, getBookingOwnershipEventContext(callRequest));
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_REJECTED,
@@ -623,7 +651,7 @@ export class CallRequestsService {
       throw new ConflictException('Only scheduled calls can be canceled');
     }
 
-    return this.cancelCallRequest(callRequest);
+    return this.cancelPublicCallRequest(callRequest);
   }
 
   async cancelWithToken(
@@ -668,11 +696,21 @@ export class CallRequestsService {
 
     const scheduledAt = this.normalizeRescheduleInput(dto);
     const availabilityRules = getAvailabilityRules(eventType);
+    const wasScheduled = callRequest.status === CallRequestStatus.SCHEDULED;
+
+    if (!wasScheduled && callRequest.status !== CallRequestStatus.REQUESTED) {
+      throw new ConflictException(
+        'Only requested or scheduled calls can be rescheduled',
+      );
+    }
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
-    await this.assertSlotAvailable(scheduledAt, callRequest.id);
-
-    const wasScheduled = callRequest.status === CallRequestStatus.SCHEDULED;
+    await this.assertTimeRangeAvailable({
+      scheduledAt,
+      durationMinutes: availabilityRules.durationMinutes,
+      hostId: eventType.hostId.toString(),
+      excludeCallRequestId: callRequest.id,
+    });
 
     if (wasScheduled) {
       await this.updateScheduledCallRequestCalendarEvent(
@@ -680,19 +718,16 @@ export class CallRequestsService {
         scheduledAt,
         availabilityRules.durationMinutes,
       );
-    } else if (callRequest.status !== CallRequestStatus.REQUESTED) {
-      throw new ConflictException(
-        'Only requested or scheduled calls can be rescheduled',
-      );
     }
 
     callRequest.scheduledAt = scheduledAt;
+    callRequest.durationMinutes = availabilityRules.durationMinutes;
 
     try {
       await callRequest.save();
     } catch (error) {
       if (isDuplicateKeyError(error)) {
-        throw new BadRequestException('This time slot is already reserved');
+        throw new ConflictException('This time slot is already reserved');
       }
 
       throw error;
@@ -734,7 +769,7 @@ export class CallRequestsService {
           phoneNumber: callRequest.phoneNumber,
           scheduledAt,
           meetingLocation: callRequest.meetingLocation,
-          calendarOwnerId: callRequest.publicBookingHostId,
+          calendarOwnerId: getCalendarOwnerId(callRequest),
         },
         durationMinutes,
       ),
@@ -750,6 +785,7 @@ export class CallRequestsService {
     const query: {
       _id: string;
       cancellationToken: string;
+      $or?: Array<Record<string, unknown>>;
       publicBookingHostId?: string;
       publicBookingEventTypeSlug?: string;
     } = {
@@ -758,8 +794,16 @@ export class CallRequestsService {
     };
 
     if (eventType) {
-      query.publicBookingHostId = eventType.hostId.toString();
-      query.publicBookingEventTypeSlug = eventType.slug;
+      query.$or = [
+        {
+          hostId: eventType.hostId,
+          eventTypeId: eventType._id,
+        },
+        {
+          publicBookingHostId: eventType.hostId.toString(),
+          publicBookingEventTypeSlug: eventType.slug,
+        },
+      ];
     }
 
     const callRequest = await this.callRequestModel.findOne(query).exec();
@@ -778,12 +822,33 @@ export class CallRequestsService {
       throw new ConflictException('Only scheduled calls can be canceled');
     }
 
+    return this.cancelActiveCallRequest(callRequest);
+  }
+
+  private async cancelPublicCallRequest(
+    callRequest: CallRequestDocument,
+  ): Promise<CallRequestResponseDto> {
+    if (
+      callRequest.status !== CallRequestStatus.REQUESTED &&
+      callRequest.status !== CallRequestStatus.SCHEDULED
+    ) {
+      throw new ConflictException(
+        'Only requested or scheduled calls can be canceled',
+      );
+    }
+
+    return this.cancelActiveCallRequest(callRequest);
+  }
+
+  private async cancelActiveCallRequest(
+    callRequest: CallRequestDocument,
+  ): Promise<CallRequestResponseDto> {
     const hadCalendarEvent = Boolean(callRequest.calendarProviderEventId);
 
     if (callRequest.calendarProviderEventId) {
       await this.calendarProvider.cancelEvent({
         providerEventId: callRequest.calendarProviderEventId,
-        ownerId: callRequest.publicBookingHostId,
+        ownerId: getCalendarOwnerId(callRequest),
       });
     }
 
@@ -796,6 +861,7 @@ export class CallRequestsService {
       email: callRequest.email,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    Object.assign(event, getBookingOwnershipEventContext(callRequest));
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_CANCELED,
@@ -891,6 +957,7 @@ export class CallRequestsService {
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    Object.assign(event, getBookingOwnershipEventContext(callRequest));
     const publicBooking = toPublicBookingEventContext(callRequest);
 
     if (publicBooking) {
@@ -912,6 +979,7 @@ export class CallRequestsService {
       phoneNumber: callRequest.phoneNumber,
       scheduledAt: callRequest.scheduledAt.toISOString(),
     };
+    Object.assign(event, getBookingOwnershipEventContext(callRequest));
 
     await this.rabbitmqPublisherService.publish(
       RabbitmqRoutingKey.CALL_RESCHEDULED,
@@ -923,6 +991,22 @@ export class CallRequestsService {
     const eventType = await this.eventTypesService.findDefaultActiveEventType();
 
     return getAvailabilityRules(eventType);
+  }
+
+  private async getAvailabilityRulesForExistingBooking(
+    callRequest: CallRequestDocument,
+  ): Promise<AvailabilityRules> {
+    if (callRequest.eventTypeId) {
+      const eventType = await this.eventTypesService.getById(
+        callRequest.eventTypeId,
+      );
+
+      return getAvailabilityRules(eventType);
+    }
+
+    // Legacy bookings created before booking ownership existed do not have
+    // eventTypeId. Keep them approvable by using the default event type.
+    return this.getDefaultAvailabilityRules();
   }
 
   private getWorkingDayBounds(
@@ -951,14 +1035,16 @@ export class CallRequestsService {
   private hasAvailabilityConflict(input: {
     slotStartsAt: DateTime;
     slotEndsAt: DateTime;
-    localReservations: Array<{ scheduledAt: Date }>;
+    localReservations: Array<{ scheduledAt: Date; durationMinutes?: number }>;
     externalBusySlots: Array<{ startsAt: string; endsAt: string }>;
-    reservationDurationMinutes: number;
+    fallbackReservationDurationMinutes: number;
   }): boolean {
     const localConflict = input.localReservations.some((callRequest) => {
       const startsAt = DateTime.fromJSDate(callRequest.scheduledAt);
       const endsAt = startsAt.plus({
-        minutes: input.reservationDurationMinutes,
+        minutes:
+          callRequest.durationMinutes ??
+          input.fallbackReservationDurationMinutes,
       });
 
       return rangesOverlap(
@@ -1006,6 +1092,8 @@ function getAvailabilityRules(
   eventType: EventTypeDocument | null,
 ): AvailabilityRules {
   return {
+    hostId: eventType?.hostId?.toString(),
+    eventTypeId: eventType?.id,
     timezone: eventType?.availabilityTimezone ?? DEFAULT_EVENT_TYPE_TIMEZONE,
     workdayStartHour:
       eventType?.workdayStartHour ?? DEFAULT_EVENT_TYPE_WORKDAY_START_HOUR,
@@ -1021,15 +1109,100 @@ function getAvailabilityRules(
   };
 }
 
+function buildActiveReservationLookupQuery(input: {
+  startsAt: Date;
+  endsAt: Date;
+  hostId?: string;
+  excludeCallRequestId?: string;
+}) {
+  const query: {
+    scheduledAt: {
+      $lt: Date;
+    };
+    status: {
+      $in: CallRequestStatus[];
+    };
+    _id?: {
+      $ne: string;
+    };
+    $or?: Array<Record<string, unknown>>;
+  } = {
+    scheduledAt: {
+      $lt: input.endsAt,
+    },
+    status: {
+      $in: ACTIVE_RESERVATION_STATUSES,
+    },
+  };
+
+  if (input.hostId) {
+    query.$or = [
+      { hostId: input.hostId },
+      { publicBookingHostId: input.hostId },
+      {
+        hostId: { $exists: false },
+        publicBookingHostId: { $exists: false },
+      },
+    ];
+  }
+
+  if (input.excludeCallRequestId) {
+    query._id = {
+      $ne: input.excludeCallRequestId,
+    };
+  }
+
+  return query;
+}
+
 function getPublicBookingRouteContext(
   eventType: EventTypeDocument,
   hostSlug = eventType.hostId.toString(),
 ): PublicBookingRouteContext {
   return {
     hostId: eventType.hostId.toString(),
+    eventTypeId: eventType.id,
     hostSlug,
     eventTypeSlug: eventType.slug,
   };
+}
+
+function getCalendarOwnerId(
+  callRequest: CallRequestDocument,
+): string | undefined {
+  return callRequest.hostId?.toString() ?? callRequest.publicBookingHostId;
+}
+
+function getBookingOwnershipEventContext(
+  callRequest: CallRequestDocument,
+): Pick<
+  CallRequestedEvent,
+  'hostId' | 'eventTypeId' | 'hostSlug' | 'eventTypeSlug'
+> {
+  const context: Pick<
+    CallRequestedEvent,
+    'hostId' | 'eventTypeId' | 'hostSlug' | 'eventTypeSlug'
+  > = {};
+
+  if (callRequest.hostId) {
+    context.hostId = callRequest.hostId.toString();
+  } else if (callRequest.publicBookingHostId) {
+    context.hostId = callRequest.publicBookingHostId;
+  }
+
+  if (callRequest.eventTypeId) {
+    context.eventTypeId = callRequest.eventTypeId.toString();
+  }
+
+  if (callRequest.publicBookingHostSlug) {
+    context.hostSlug = callRequest.publicBookingHostSlug;
+  }
+
+  if (callRequest.publicBookingEventTypeSlug) {
+    context.eventTypeSlug = callRequest.publicBookingEventTypeSlug;
+  }
+
+  return context;
 }
 
 function toPublicBookingEventContext(
@@ -1044,6 +1217,8 @@ function toPublicBookingEventContext(
   }
 
   return {
+    hostId: callRequest.hostId?.toString() ?? callRequest.publicBookingHostId,
+    eventTypeId: callRequest.eventTypeId?.toString(),
     hostSlug: callRequest.publicBookingHostSlug,
     eventTypeSlug: callRequest.publicBookingEventTypeSlug,
     cancellationToken: callRequest.cancellationToken,

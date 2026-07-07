@@ -70,6 +70,16 @@ export class EventTypesService {
     return eventType;
   }
 
+  async getById(id: string | Types.ObjectId): Promise<EventTypeDocument> {
+    const eventType = await this.eventTypeModel.findById(id).exec();
+
+    if (!eventType) {
+      throw new NotFoundException('Event type was not found');
+    }
+
+    return eventType;
+  }
+
   private async findOldestActiveByHostId(
     hostId: Types.ObjectId,
   ): Promise<EventTypeDocument | null> {
