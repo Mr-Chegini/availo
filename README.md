@@ -190,17 +190,10 @@ Views:
 
 The frontend calls the Call Requests Service API.
 
-For local/MVP admin usage, the frontend still supports the API-key bridge in
-`frontend/.env`:
-
-```env
-VITE_ADMIN_API_KEY=dev-admin-key
-```
-
-`VITE_ADMIN_API_KEY` is compiled into browser code. It is only a local/MVP
-bridge for the API-key fallback. The backend now supports admin session login;
-the frontend should move to that session flow before production customer
-traffic.
+For local admin usage, sign in from the Admin View with `ADMIN_EMAIL` and
+`ADMIN_PASSWORD` from the Call Requests Service environment. The frontend stores
+the returned bearer session token in browser session storage and sends it on
+protected admin API calls.
 
 ## Shared Types
 

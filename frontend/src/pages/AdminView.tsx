@@ -1,14 +1,22 @@
-import type { ChangeEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import {
   approveCallRequest,
   cancelCallRequest,
   type CallRequest,
   getCallRequests,
+  loginAdmin,
   markCallAsCalled,
   rejectCallRequest,
   updateAdminNote,
 } from '../api/callRequestsApi';
+
+const ADMIN_SESSION_STORAGE_KEY = 'availo-admin-session';
+
+interface AdminSession {
+  accessToken: string;
+  expiresAt: string;
+}
 
 function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat('en-GB', {
@@ -19,17 +27,27 @@ function formatDateTime(value: string): string {
 }
 
 export function AdminView() {
+  const [session, setSession] = useState<AdminSession | null>(() =>
+    readStoredAdminSession(),
+  );
   const [callRequests, setCallRequests] = useState<CallRequest[]>([]);
   const [notesById, setNotesById] = useState<Record<string, string>>({});
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  async function loadCallRequests() {
+  async function loadCallRequests(activeSession = session) {
+    if (!activeSession) {
+      return;
+    }
+
     try {
       setMessage('');
       setIsLoading(true);
 
-      const data = await getCallRequests();
+      const data = await getCallRequests(activeSession.accessToken);
       setCallRequests(data);
 
       const nextNotesById = data.reduce<Record<string, string>>(
@@ -53,8 +71,53 @@ export function AdminView() {
   }
 
   useEffect(() => {
-    void loadCallRequests();
-  }, []);
+    if (session) {
+      void loadCallRequests(session);
+    }
+  }, [session]);
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !password) {
+      setMessage('Email and password are required.');
+      return;
+    }
+
+    try {
+      setMessage('');
+      setIsLoggingIn(true);
+
+      const result = await loginAdmin({
+        email: trimmedEmail,
+        password,
+      });
+      const nextSession = {
+        accessToken: result.accessToken,
+        expiresAt: result.expiresAt,
+      };
+
+      storeAdminSession(nextSession);
+      setSession(nextSession);
+      setPassword('');
+    } catch (error) {
+      setSession(null);
+      clearStoredAdminSession();
+      setMessage(error instanceof Error ? error.message : 'Login failed.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  function handleLogout() {
+    clearStoredAdminSession();
+    setSession(null);
+    setCallRequests([]);
+    setNotesById({});
+    setMessage('');
+  }
 
   async function runAction(
     action: () => Promise<CallRequest>,
@@ -85,29 +148,97 @@ export function AdminView() {
   }
 
   async function handleSaveNote(callRequestId: string) {
+    if (!session) {
+      return;
+    }
+
     await runAction(
-      () => updateAdminNote(callRequestId, notesById[callRequestId] ?? ''),
+      () =>
+        updateAdminNote(
+          session.accessToken,
+          callRequestId,
+          notesById[callRequestId] ?? '',
+        ),
       'Admin note saved.',
     );
   }
 
   function handleReject(callRequestId: string) {
+    if (!session) {
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to reject this request?')) {
       return;
     }
 
     void runAction(
-      () => rejectCallRequest(callRequestId),
+      () => rejectCallRequest(session.accessToken, callRequestId),
       'Call request rejected.',
     );
   }
 
   function handleCancel(callRequestId: string) {
+    if (!session) {
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to cancel this call?')) {
       return;
     }
 
-    void runAction(() => cancelCallRequest(callRequestId), 'Call canceled.');
+    void runAction(
+      () => cancelCallRequest(session.accessToken, callRequestId),
+      'Call canceled.',
+    );
+  }
+
+  if (!session) {
+    return (
+      <section className="page-card">
+        <h1 className="page-title">Admin View</h1>
+
+        <form className="form-grid" onSubmit={handleLogin}>
+          <div className="form-row">
+            <label className="form-label" htmlFor="admin-email">
+              Email
+            </label>
+            <input
+              className="form-input"
+              id="admin-email"
+              type="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.currentTarget.value)}
+            />
+          </div>
+
+          <div className="form-row">
+            <label className="form-label" htmlFor="admin-password">
+              Password
+            </label>
+            <input
+              className="form-input"
+              id="admin-password"
+              type="password"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.currentTarget.value)}
+            />
+          </div>
+
+          <button
+            className="primary-button"
+            type="submit"
+            disabled={isLoggingIn}
+          >
+            {isLoggingIn ? 'Signing in...' : 'Sign in'}
+          </button>
+        </form>
+
+        {message && <p className="message">{message}</p>}
+      </section>
+    );
   }
 
   return (
@@ -117,14 +248,24 @@ export function AdminView() {
         Manage call requests, approval actions, call status, and internal notes.
       </p>
 
-      <button
-        className="primary-button"
-        type="button"
-        onClick={loadCallRequests}
-        disabled={isLoading}
-      >
-        {isLoading ? 'Loading...' : 'Refresh requests'}
-      </button>
+      <div className="action-row">
+        <button
+          className="primary-button"
+          type="button"
+          onClick={() => void loadCallRequests()}
+          disabled={isLoading}
+        >
+          {isLoading ? 'Loading...' : 'Refresh requests'}
+        </button>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={handleLogout}
+        >
+          Sign out
+        </button>
+      </div>
 
       {message && <p className="message">{message}</p>}
 
@@ -162,7 +303,8 @@ export function AdminView() {
                   disabled={callRequest.status !== 'REQUESTED'}
                   onClick={() =>
                     void runAction(
-                      () => approveCallRequest(callRequest.id),
+                      () =>
+                        approveCallRequest(session.accessToken, callRequest.id),
                       'Call request approved.',
                     )
                   }
@@ -185,7 +327,8 @@ export function AdminView() {
                   disabled={callRequest.status !== 'SCHEDULED'}
                   onClick={() =>
                     void runAction(
-                      () => markCallAsCalled(callRequest.id),
+                      () =>
+                        markCallAsCalled(session.accessToken, callRequest.id),
                       'Call marked as called.',
                     )
                   }
@@ -233,4 +376,41 @@ export function AdminView() {
       )}
     </section>
   );
+}
+
+function readStoredAdminSession(): AdminSession | null {
+  const rawSession = window.sessionStorage.getItem(ADMIN_SESSION_STORAGE_KEY);
+
+  if (!rawSession) {
+    return null;
+  }
+
+  try {
+    const session = JSON.parse(rawSession) as AdminSession;
+
+    if (
+      !session.accessToken ||
+      !session.expiresAt ||
+      new Date(session.expiresAt) <= new Date()
+    ) {
+      clearStoredAdminSession();
+      return null;
+    }
+
+    return session;
+  } catch {
+    clearStoredAdminSession();
+    return null;
+  }
+}
+
+function storeAdminSession(session: AdminSession): void {
+  window.sessionStorage.setItem(
+    ADMIN_SESSION_STORAGE_KEY,
+    JSON.stringify(session),
+  );
+}
+
+function clearStoredAdminSession(): void {
+  window.sessionStorage.removeItem(ADMIN_SESSION_STORAGE_KEY);
 }
