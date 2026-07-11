@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
+import { AdminSessionService } from './admin-session.service';
 
 interface RequestWithHeaders {
   headers: Record<string, string | string[] | undefined>;
@@ -13,19 +14,38 @@ interface RequestWithHeaders {
 
 @Injectable()
 export class AdminApiKeyGuard implements CanActivate {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly adminSessionService: AdminSessionService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<RequestWithHeaders>();
     const configuredApiKey =
       this.configService.getOrThrow<string>('ADMIN_API_KEY');
+    const bearerToken = getBearerToken(request.headers);
+
+    if (bearerToken && this.isValidSessionToken(bearerToken)) {
+      return true;
+    }
+
     const providedApiKey = getProvidedApiKey(request.headers);
 
     if (!providedApiKey || !apiKeysMatch(providedApiKey, configuredApiKey)) {
-      throw new UnauthorizedException('Admin API key is required');
+      throw new UnauthorizedException('Admin authentication is required');
     }
 
     return true;
+  }
+
+  private isValidSessionToken(bearerToken: string): boolean {
+    try {
+      this.adminSessionService.verifyAccessToken(bearerToken);
+
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 
@@ -38,14 +58,24 @@ function getProvidedApiKey(
     return apiKeyHeader;
   }
 
-  const authorizationHeader = getSingleHeaderValue(headers.authorization);
-  const bearerPrefix = 'Bearer ';
+  const bearerToken = getBearerToken(headers);
 
-  if (authorizationHeader?.startsWith(bearerPrefix)) {
-    return authorizationHeader.slice(bearerPrefix.length);
+  if (bearerToken) {
+    return bearerToken;
   }
 
   return null;
+}
+
+function getBearerToken(headers: RequestWithHeaders['headers']): string | null {
+  const authorizationHeader = getSingleHeaderValue(headers.authorization);
+  const bearerPrefix = 'Bearer ';
+
+  if (!authorizationHeader?.startsWith(bearerPrefix)) {
+    return null;
+  }
+
+  return authorizationHeader.slice(bearerPrefix.length);
 }
 
 function getSingleHeaderValue(

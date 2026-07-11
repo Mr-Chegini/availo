@@ -59,7 +59,7 @@ POST   /api/calendar-connections/google/start
 GET    /api/calendar-connections/google/callback
 ```
 
-Admin-only endpoints require an admin API key:
+Admin-only endpoints require admin authentication:
 
 - `GET /api/call-requests`
 - `PATCH /api/call-requests/:id/approve`
@@ -73,20 +73,37 @@ Admin-only endpoints require an admin API key:
 Calendar connection list/start endpoints accept an optional `hostSlug` query
 parameter. When it is omitted, they use the default host account.
 
-Public endpoints do not require an admin API key:
+Admin login returns a bearer session token:
+
+```http
+POST /api/auth/admin/login
+Content-Type: application/json
+```
+
+```json
+{
+  "email": "admin@availo.local",
+  "password": "dev-admin-password"
+}
+```
+
+Public endpoints do not require admin authentication:
 
 - `POST /api/call-requests`
 - `GET /api/call-requests/availability?date=YYYY-MM-DD`
+- `POST /api/auth/admin/login`
 - `GET /api/calendar-connections/google/callback`
 
-Send the admin API key with either header:
+Send the admin session token with:
+
+```http
+Authorization: Bearer your-admin-session-token
+```
+
+The legacy local/MVP API key is still accepted temporarily:
 
 ```http
 x-admin-api-key: your-admin-api-key
-```
-
-```http
-Authorization: Bearer your-admin-api-key
 ```
 
 Example create request:
@@ -173,15 +190,17 @@ Views:
 
 The frontend calls the Call Requests Service API.
 
-For local/MVP admin usage, set the frontend admin API key in `frontend/.env`:
+For local/MVP admin usage, the frontend still supports the API-key bridge in
+`frontend/.env`:
 
 ```env
 VITE_ADMIN_API_KEY=dev-admin-key
 ```
 
 `VITE_ADMIN_API_KEY` is compiled into browser code. It is only a local/MVP
-bridge for the current API-key guard and should be replaced by real admin
-authentication before production customer traffic.
+bridge for the API-key fallback. The backend now supports admin session login;
+the frontend should move to that session flow before production customer
+traffic.
 
 ## Shared Types
 
@@ -231,8 +250,11 @@ RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 RABBITMQ_CALL_RESCHEDULED_SCHEDULER_QUEUE=scheduler.call-rescheduled
 
-ADMIN_EMAIL=amir@gmail.com
 ADMIN_API_KEY=dev-admin-key
+ADMIN_EMAIL=admin@availo.local
+ADMIN_PASSWORD=dev-admin-password
+ADMIN_SESSION_SECRET=replace-with-a-long-random-string
+ADMIN_SESSION_TTL_SECONDS=28800
 
 EMAIL_PROVIDER=console
 EMAIL_FROM=no-reply@example.com
@@ -245,8 +267,9 @@ SMTP_PASSWORD=your-smtp-password
 
 Real `.env` files are ignored by git; keep local secrets out of commits.
 
-`ADMIN_API_KEY` defaults to `dev-admin-key` outside production. In production,
-set a long random value; the Call Requests Service requires it at startup.
+`ADMIN_API_KEY`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` have development
+defaults outside production. In staging and production, set long random values;
+the Call Requests Service requires production-safe values at startup.
 
 ## Running with Docker Compose
 

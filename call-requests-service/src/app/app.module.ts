@@ -28,6 +28,21 @@ import { HostsModule } from './hosts/hosts.module';
           then: Joi.string().min(16).required(),
           otherwise: Joi.string().default('dev-admin-key'),
         }),
+        ADMIN_EMAIL: Joi.string().email().default('admin@availo.local'),
+        ADMIN_PASSWORD: Joi.when('NODE_ENV', {
+          is: Joi.valid('staging', 'production'),
+          then: Joi.string().min(12).required(),
+          otherwise: Joi.string().default('dev-admin-password'),
+        }),
+        ADMIN_SESSION_SECRET: Joi.when('NODE_ENV', {
+          is: Joi.valid('staging', 'production'),
+          then: Joi.string().min(32).required(),
+          otherwise: Joi.string().default('dev-admin-session-secret'),
+        }),
+        ADMIN_SESSION_TTL_SECONDS: Joi.number()
+          .integer()
+          .min(60)
+          .default(28800),
 
         CALENDAR_TOKEN_ENCRYPTION_SECRET: Joi.string().optional(),
 
