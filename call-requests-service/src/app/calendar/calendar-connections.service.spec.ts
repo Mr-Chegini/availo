@@ -23,14 +23,18 @@ describe('CalendarConnectionsService', () => {
         },
       ]),
     };
+    const hostAccountsService = createHostAccountsService({
+      getBySlug: vi.fn().mockResolvedValue({ id: 'host-1' }),
+    });
     const service = new CalendarConnectionsService(
       calendarAccountsService as unknown as never,
       {
         createAuthorizationUrl: vi.fn(),
       } as unknown as never,
+      hostAccountsService as unknown as never,
     );
 
-    await expect(service.listConnections('owner-1')).resolves.toEqual([
+    await expect(service.listConnections('default-admin')).resolves.toEqual([
       {
         id: 'account-1',
         provider: 'google',
@@ -41,29 +45,35 @@ describe('CalendarConnectionsService', () => {
         updatedAt: '2030-01-01T00:30:00.000Z',
       },
     ]);
+    expect(hostAccountsService.getBySlug).toHaveBeenCalledWith('default-admin');
     expect(calendarAccountsService.findActiveByOwner).toHaveBeenCalledWith(
-      'owner-1',
+      'host-1',
     );
   });
 
-  it('starts Google connection by returning an authorization URL', () => {
+  it('starts Google connection by returning an authorization URL for the default host', async () => {
+    const googleCalendarOAuthService = {
+      createAuthorizationUrl: vi
+        .fn()
+        .mockReturnValue('https://accounts.google.com/oauth'),
+    };
     const service = new CalendarConnectionsService(
       {
         findActiveByOwner: vi.fn(),
       } as unknown as never,
-      {
-        createAuthorizationUrl: vi
-          .fn()
-          .mockReturnValue('https://accounts.google.com/oauth'),
-      } as unknown as never,
+      googleCalendarOAuthService as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
-    expect(service.startGoogleConnection('owner-1')).toEqual({
+    await expect(service.startGoogleConnection()).resolves.toEqual({
       authorizationUrl: 'https://accounts.google.com/oauth',
     });
+    expect(
+      googleCalendarOAuthService.createAuthorizationUrl,
+    ).toHaveBeenCalledWith('host-1');
   });
 
-  it('returns an explicit not implemented error before Google OAuth is configured', () => {
+  it('returns an explicit not implemented error before Google OAuth is configured', async () => {
     const service = new CalendarConnectionsService(
       {
         findActiveByOwner: vi.fn(),
@@ -75,9 +85,10 @@ describe('CalendarConnectionsService', () => {
           );
         }),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
-    expect(() => service.startGoogleConnection('owner-1')).toThrow(
+    await expect(service.startGoogleConnection()).rejects.toThrow(
       NotImplementedException,
     );
   });
@@ -109,6 +120,7 @@ describe('CalendarConnectionsService', () => {
     const service = new CalendarConnectionsService(
       calendarAccountsService as unknown as never,
       googleCalendarOAuthService as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -154,6 +166,7 @@ describe('CalendarConnectionsService', () => {
         exchangeAuthorizationCode: vi.fn(),
         getPrimaryCalendarIdentity: vi.fn(),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -180,6 +193,7 @@ describe('CalendarConnectionsService', () => {
         exchangeAuthorizationCode: vi.fn(),
         getPrimaryCalendarIdentity: vi.fn(),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -203,6 +217,7 @@ describe('CalendarConnectionsService', () => {
     const service = new CalendarConnectionsService(
       calendarAccountsService as unknown as never,
       googleCalendarOAuthService as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -232,6 +247,7 @@ describe('CalendarConnectionsService', () => {
         exchangeAuthorizationCode: vi.fn().mockRejectedValue(new Error('boom')),
         getPrimaryCalendarIdentity: vi.fn(),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -265,6 +281,7 @@ describe('CalendarConnectionsService', () => {
           .fn()
           .mockRejectedValue(new Error('calendar lookup failed')),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -298,6 +315,7 @@ describe('CalendarConnectionsService', () => {
           primaryCalendarId: 'signed-owner@gmail.com',
         }),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await service.handleGoogleCallback('authorization-code', 'signed-state');
@@ -323,6 +341,7 @@ describe('CalendarConnectionsService', () => {
         exchangeAuthorizationCode: vi.fn(),
         getPrimaryCalendarIdentity: vi.fn(),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -352,6 +371,7 @@ describe('CalendarConnectionsService', () => {
           primaryCalendarId: 'owner-1@gmail.com',
         }),
       } as unknown as never,
+      createHostAccountsService() as unknown as never,
     );
 
     await expect(
@@ -362,3 +382,16 @@ describe('CalendarConnectionsService', () => {
     });
   });
 });
+
+function createHostAccountsService(
+  overrides: Partial<{
+    getBySlug: ReturnType<typeof vi.fn>;
+    findDefaultOrCreate: ReturnType<typeof vi.fn>;
+  }> = {},
+) {
+  return {
+    getBySlug: vi.fn().mockResolvedValue({ id: 'host-1' }),
+    findDefaultOrCreate: vi.fn().mockResolvedValue({ id: 'host-1' }),
+    ...overrides,
+  };
+}

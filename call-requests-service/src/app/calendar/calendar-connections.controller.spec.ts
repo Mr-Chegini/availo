@@ -17,6 +17,33 @@ describe('CalendarConnectionsController', () => {
     );
   });
 
+  it('passes optional host slug to protected calendar connection endpoints', async () => {
+    const calendarConnectionsService = {
+      listConnections: vi.fn().mockResolvedValue([]),
+      startGoogleConnection: vi.fn().mockResolvedValue({
+        authorizationUrl: 'https://accounts.google.com/oauth',
+      }),
+    };
+    const controller = new CalendarConnectionsController(
+      calendarConnectionsService as unknown as never,
+    );
+
+    await expect(controller.listConnections('default-admin')).resolves.toEqual(
+      [],
+    );
+    await expect(
+      controller.startGoogleConnection('default-admin'),
+    ).resolves.toEqual({
+      authorizationUrl: 'https://accounts.google.com/oauth',
+    });
+    expect(calendarConnectionsService.listConnections).toHaveBeenCalledWith(
+      'default-admin',
+    );
+    expect(
+      calendarConnectionsService.startGoogleConnection,
+    ).toHaveBeenCalledWith('default-admin');
+  });
+
   it('passes Google callback query params to the connection service', async () => {
     const calendarConnectionsService = {
       handleGoogleCallback: vi.fn().mockResolvedValue({

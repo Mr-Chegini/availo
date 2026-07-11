@@ -6,6 +6,7 @@ import {
 import { CalendarAccountsService } from './calendar-accounts.service';
 import type { CalendarProviderName } from './calendar-account.schema';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
+import { HostAccountsService } from '../hosts/host-accounts.service';
 
 export interface CalendarConnectionDto {
   id: string;
@@ -34,9 +35,11 @@ export class CalendarConnectionsService {
   constructor(
     private readonly calendarAccountsService: CalendarAccountsService,
     private readonly googleCalendarOAuthService: GoogleCalendarOAuthService,
+    private readonly hostAccountsService: HostAccountsService,
   ) {}
 
-  async listConnections(ownerId: string): Promise<CalendarConnectionDto[]> {
+  async listConnections(hostSlug?: string): Promise<CalendarConnectionDto[]> {
+    const ownerId = await this.resolveOwnerId(hostSlug);
     const accounts =
       await this.calendarAccountsService.findActiveByOwner(ownerId);
 
@@ -51,7 +54,11 @@ export class CalendarConnectionsService {
     }));
   }
 
-  startGoogleConnection(ownerId: string): StartCalendarConnectionResponseDto {
+  async startGoogleConnection(
+    hostSlug?: string,
+  ): Promise<StartCalendarConnectionResponseDto> {
+    const ownerId = await this.resolveOwnerId(hostSlug);
+
     try {
       return {
         authorizationUrl:
@@ -115,5 +122,13 @@ export class CalendarConnectionsService {
 
       throw new BadRequestException('Invalid Google Calendar OAuth state');
     }
+  }
+
+  private async resolveOwnerId(hostSlug?: string): Promise<string> {
+    const host = hostSlug
+      ? await this.hostAccountsService.getBySlug(hostSlug)
+      : await this.hostAccountsService.findDefaultOrCreate();
+
+    return host.id;
   }
 }

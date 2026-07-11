@@ -70,6 +70,9 @@ Admin-only endpoints require an admin API key:
 - `GET /api/calendar-connections`
 - `POST /api/calendar-connections/google/start`
 
+Calendar connection list/start endpoints accept an optional `hostSlug` query
+parameter. When it is omitted, they use the default host account.
+
 Public endpoints do not require an admin API key:
 
 - `POST /api/call-requests`
