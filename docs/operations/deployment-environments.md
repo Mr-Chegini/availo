@@ -23,7 +23,9 @@ Local values:
 - `NODE_ENV=development`
 - `MONGODB_URI=mongodb://localhost:27017/call-reservation`
 - `RABBITMQ_URL=amqp://guest:guest@localhost:5672`
-- `ADMIN_API_KEY=dev-admin-key`
+- `ADMIN_EMAIL=admin@availo.local`
+- `ADMIN_PASSWORD=dev-admin-password`
+- `ADMIN_SESSION_SECRET=dev-admin-session-secret`
 - `PUBLIC_BOOKING_BASE_URL=http://localhost:3000/api`
 - `VITE_API_BASE_URL=http://localhost:3000/api`
 - `PUBLIC_BOOKING_RATE_LIMIT_STORE=memory`
@@ -50,8 +52,9 @@ Required staging values:
 - `NODE_ENV=staging`
 - `MONGODB_URI`
 - `RABBITMQ_URL`
-- `ADMIN_API_KEY`
 - `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
 - `PUBLIC_BOOKING_BASE_URL`
 - `VITE_API_BASE_URL`
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
@@ -62,8 +65,9 @@ Required staging values:
 - `PUBLIC_BOOKING_RATE_LIMIT_STORE`
 - `REDIS_URL` when `PUBLIC_BOOKING_RATE_LIMIT_STORE=redis`
 
-Use a long random `ADMIN_API_KEY`; staging uses the same validation rule as
-production. Use staging Google OAuth credentials and redirect URIs.
+Use a long random `ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET`; staging uses the
+same validation rule as production. Use staging Google OAuth credentials and
+redirect URIs.
 
 If validating real email delivery in staging, set:
 
@@ -84,8 +88,9 @@ Production required values:
 - `NODE_ENV=production`
 - `MONGODB_URI`
 - `RABBITMQ_URL`
-- `ADMIN_API_KEY`
 - `ADMIN_EMAIL`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
 - `PUBLIC_BOOKING_BASE_URL`
 - `VITE_API_BASE_URL`
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
@@ -118,8 +123,9 @@ All backend services accept:
 - `NODE_ENV=staging`
 - `NODE_ENV=production`
 
-The Call Requests Service requires `ADMIN_API_KEY` with at least 16 characters
-when `NODE_ENV` is `staging` or `production`.
+The Call Requests Service requires `ADMIN_PASSWORD` with at least 12 characters
+and `ADMIN_SESSION_SECRET` with at least 32 characters when `NODE_ENV` is
+`staging` or `production`.
 
 `CALENDAR_TOKEN_ENCRYPTION_SECRET` is required for Google Calendar token storage
 to work. Without it, OAuth token protection will fail when calendar connection

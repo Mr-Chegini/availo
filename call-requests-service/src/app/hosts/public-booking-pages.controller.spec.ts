@@ -1,7 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 import { PublicBookingPagesController } from './public-booking-pages.controller';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 import { PUBLIC_BOOKING_RATE_LIMIT_METADATA } from '../rate-limit/public-booking-rate-limit.decorator';
 import { PublicBookingRateLimitGuard } from '../rate-limit/public-booking-rate-limit.guard';
 
@@ -14,7 +14,7 @@ describe('PublicBookingPagesController', () => {
       ) ?? [];
 
     expect(guards).toContain(PublicBookingRateLimitGuard);
-    expect(guards).not.toContain(AdminApiKeyGuard);
+    expect(guards).not.toContain(AdminSessionGuard);
     expect(
       Reflect.getMetadata(
         PUBLIC_BOOKING_RATE_LIMIT_METADATA,

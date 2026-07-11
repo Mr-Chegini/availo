@@ -1,6 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it } from 'vitest';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 import { MetricsController } from './metrics.controller';
 import type { MetricsService } from './metrics.service';
 
@@ -25,13 +25,13 @@ describe('MetricsController', () => {
     expect(controller.getMetrics()).toBe(snapshot);
   });
 
-  it('protects metrics with the admin API key guard', () => {
+  it('protects metrics with the admin session guard', () => {
     const guards =
       Reflect.getMetadata(
         GUARDS_METADATA,
         MetricsController.prototype.getMetrics,
       ) ?? [];
 
-    expect(guards).toContain(AdminApiKeyGuard);
+    expect(guards).toContain(AdminSessionGuard);
   });
 });

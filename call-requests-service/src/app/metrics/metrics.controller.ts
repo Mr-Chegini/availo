@@ -1,5 +1,5 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 import { MetricsService } from './metrics.service';
 import type { MetricsSnapshot } from './metrics.service';
 
@@ -8,7 +8,7 @@ export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}
 
   @Get()
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   getMetrics(): MetricsSnapshot {
     return this.metricsService.snapshot();
   }

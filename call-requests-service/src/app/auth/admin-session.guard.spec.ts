@@ -1,47 +1,13 @@
 import { UnauthorizedException } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
 import type { ExecutionContext } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiKeyGuard } from './admin-api-key.guard';
+import { AdminSessionGuard } from './admin-session.guard';
 import type { AdminSessionService } from './admin-session.service';
 
-describe('AdminApiKeyGuard', () => {
-  it('allows requests with a matching x-admin-api-key header', () => {
-    const guard = new AdminApiKeyGuard(
-      createConfigService('secret-key'),
-      createAdminSessionService(),
-    );
-
-    expect(
-      guard.canActivate(
-        createExecutionContext({ 'x-admin-api-key': 'secret-key' }),
-      ),
-    ).toBe(true);
-  });
-
-  it('allows requests with a matching bearer token', () => {
-    const guard = new AdminApiKeyGuard(
-      createConfigService('secret-key'),
-      createAdminSessionService({
-        verifyAccessToken: vi.fn(() => {
-          throw new UnauthorizedException();
-        }),
-      }),
-    );
-
-    expect(
-      guard.canActivate(
-        createExecutionContext({ authorization: 'Bearer secret-key' }),
-      ),
-    ).toBe(true);
-  });
-
+describe('AdminSessionGuard', () => {
   it('allows requests with a valid admin session bearer token', () => {
     const adminSessionService = createAdminSessionService();
-    const guard = new AdminApiKeyGuard(
-      createConfigService('secret-key'),
-      adminSessionService,
-    );
+    const guard = new AdminSessionGuard(adminSessionService);
 
     expect(
       guard.canActivate(
@@ -53,9 +19,16 @@ describe('AdminApiKeyGuard', () => {
     );
   });
 
-  it('rejects requests without a matching admin API key', () => {
-    const guard = new AdminApiKeyGuard(
-      createConfigService('secret-key'),
+  it('rejects requests without an admin session bearer token', () => {
+    const guard = new AdminSessionGuard(createAdminSessionService());
+
+    expect(() =>
+      guard.canActivate(createExecutionContext({ 'x-admin-api-key': 'wrong' })),
+    ).toThrow(UnauthorizedException);
+  });
+
+  it('rejects invalid admin session bearer tokens', () => {
+    const guard = new AdminSessionGuard(
       createAdminSessionService({
         verifyAccessToken: vi.fn(() => {
           throw new UnauthorizedException();
@@ -64,16 +37,12 @@ describe('AdminApiKeyGuard', () => {
     );
 
     expect(() =>
-      guard.canActivate(createExecutionContext({ 'x-admin-api-key': 'wrong' })),
+      guard.canActivate(
+        createExecutionContext({ authorization: 'Bearer invalid-session' }),
+      ),
     ).toThrow(UnauthorizedException);
   });
 });
-
-function createConfigService(apiKey: string): ConfigService {
-  return {
-    getOrThrow: () => apiKey,
-  } as unknown as ConfigService;
-}
 
 function createAdminSessionService(
   overrides: Partial<{

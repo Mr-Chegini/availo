@@ -23,11 +23,6 @@ import { HostsModule } from './hosts/hosts.module';
         RABBITMQ_URL: Joi.string().required(),
         RABBITMQ_CALLS_EXCHANGE: Joi.string().default('calls.exchange'),
 
-        ADMIN_API_KEY: Joi.when('NODE_ENV', {
-          is: Joi.valid('staging', 'production'),
-          then: Joi.string().min(16).required(),
-          otherwise: Joi.string().default('dev-admin-key'),
-        }),
         ADMIN_EMAIL: Joi.string().email().default('admin@availo.local'),
         ADMIN_PASSWORD: Joi.when('NODE_ENV', {
           is: Joi.valid('staging', 'production'),

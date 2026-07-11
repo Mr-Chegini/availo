@@ -1,19 +1,19 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 import { CalendarConnectionsController } from './calendar-connections.controller';
 
 describe('CalendarConnectionsController', () => {
   it.each(['listConnections', 'startGoogleConnection'] as const)(
-    'protects %s with the admin API key guard',
+    'protects %s with the admin session guard',
     (methodName) => {
-      expect(getMethodGuards(methodName)).toContain(AdminApiKeyGuard);
+      expect(getMethodGuards(methodName)).toContain(AdminSessionGuard);
     },
   );
 
   it('keeps the Google OAuth callback public', () => {
     expect(getMethodGuards('handleGoogleCallback')).not.toContain(
-      AdminApiKeyGuard,
+      AdminSessionGuard,
     );
   });
 

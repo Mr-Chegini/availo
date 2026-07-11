@@ -17,7 +17,7 @@ import {
   CreateCallRequestBodyPipe,
   UpdateAdminNoteBodyPipe,
 } from './call-request-validation.pipe';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 
 @Controller('call-requests')
 export class CallRequestsController {
@@ -29,7 +29,7 @@ export class CallRequestsController {
   }
 
   @Get()
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   findAll() {
     return this.callRequestsService.findAll();
   }
@@ -40,31 +40,31 @@ export class CallRequestsController {
   }
 
   @Patch(':id/approve')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   approve(@Param('id') id: string) {
     return this.callRequestsService.approve(id);
   }
 
   @Patch(':id/reject')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   reject(@Param('id') id: string) {
     return this.callRequestsService.reject(id);
   }
 
   @Patch(':id/called')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   markAsCalled(@Param('id') id: string) {
     return this.callRequestsService.markAsCalled(id);
   }
 
   @Patch(':id/cancel')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   cancel(@Param('id') id: string) {
     return this.callRequestsService.cancel(id);
   }
 
   @Patch(':id/admin-note')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   updateAdminNote(
     @Param('id') id: string,
     @Body(UpdateAdminNoteBodyPipe) dto: UpdateAdminNoteDto,

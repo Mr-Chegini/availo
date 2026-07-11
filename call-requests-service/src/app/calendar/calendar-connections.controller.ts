@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { AdminApiKeyGuard } from '../auth/admin-api-key.guard';
+import { AdminSessionGuard } from '../auth/admin-session.guard';
 import { CalendarConnectionsService } from './calendar-connections.service';
 
 @Controller('calendar-connections')
@@ -9,13 +9,13 @@ export class CalendarConnectionsController {
   ) {}
 
   @Get()
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   listConnections(@Query('hostSlug') hostSlug?: string) {
     return this.calendarConnectionsService.listConnections(hostSlug);
   }
 
   @Post('google/start')
-  @UseGuards(AdminApiKeyGuard)
+  @UseGuards(AdminSessionGuard)
   startGoogleConnection(@Query('hostSlug') hostSlug?: string) {
     return this.calendarConnectionsService.startGoogleConnection(hostSlug);
   }

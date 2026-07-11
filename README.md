@@ -100,12 +100,6 @@ Send the admin session token with:
 Authorization: Bearer your-admin-session-token
 ```
 
-The legacy local/MVP API key is still accepted temporarily:
-
-```http
-x-admin-api-key: your-admin-api-key
-```
-
 Example create request:
 
 ```http
@@ -243,7 +237,6 @@ RABBITMQ_CALL_APPROVED_SCHEDULER_QUEUE=scheduler.call-approved
 RABBITMQ_CALL_CANCELED_SCHEDULER_QUEUE=scheduler.call-canceled
 RABBITMQ_CALL_RESCHEDULED_SCHEDULER_QUEUE=scheduler.call-rescheduled
 
-ADMIN_API_KEY=dev-admin-key
 ADMIN_EMAIL=admin@availo.local
 ADMIN_PASSWORD=dev-admin-password
 ADMIN_SESSION_SECRET=replace-with-a-long-random-string
@@ -260,9 +253,9 @@ SMTP_PASSWORD=your-smtp-password
 
 Real `.env` files are ignored by git; keep local secrets out of commits.
 
-`ADMIN_API_KEY`, `ADMIN_PASSWORD`, and `ADMIN_SESSION_SECRET` have development
-defaults outside production. In staging and production, set long random values;
-the Call Requests Service requires production-safe values at startup.
+`ADMIN_PASSWORD` and `ADMIN_SESSION_SECRET` have development defaults outside
+production. In staging and production, set long random values; the Call
+Requests Service requires production-safe values at startup.
 
 ## Running with Docker Compose
 

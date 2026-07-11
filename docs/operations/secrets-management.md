@@ -12,7 +12,8 @@ Treat these values as secrets:
 
 - `MONGODB_URI` when it contains credentials or points to a managed database.
 - `RABBITMQ_URL` when it contains credentials or points to a managed broker.
-- `ADMIN_API_KEY`.
+- `ADMIN_PASSWORD`.
+- `ADMIN_SESSION_SECRET`.
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`.
 - `GOOGLE_CALENDAR_CLIENT_SECRET`.
 - `GOOGLE_CALENDAR_STATE_SECRET`.
@@ -75,7 +76,9 @@ Local `.env` files are ignored by git and must stay uncommitted.
 
 Use development-only values locally:
 
-- `ADMIN_API_KEY=dev-admin-key`
+- `ADMIN_EMAIL=admin@availo.local`
+- `ADMIN_PASSWORD=dev-admin-password`
+- `ADMIN_SESSION_SECRET=dev-admin-session-secret`
 - Local MongoDB/RabbitMQ credentials from Docker Compose.
 - Test Google OAuth credentials if calendar connection testing is needed.
 - Test SMTP credentials only when validating email delivery.
@@ -93,7 +96,8 @@ Required staging secrets:
 
 - `MONGODB_URI`
 - `RABBITMQ_URL`
-- `ADMIN_API_KEY`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_STATE_SECRET`
@@ -105,7 +109,7 @@ Required when staging uses SMTP:
 - `SMTP_PASSWORD`
 
 Staging must not reuse production secrets. Use separate MongoDB, RabbitMQ,
-Google OAuth, SMTP, and admin API credentials.
+Google OAuth, SMTP, and admin credentials.
 
 ## Production
 
@@ -116,7 +120,8 @@ Required production secrets:
 
 - `MONGODB_URI`
 - `RABBITMQ_URL`
-- `ADMIN_API_KEY`
+- `ADMIN_PASSWORD`
+- `ADMIN_SESSION_SECRET`
 - `CALENDAR_TOKEN_ENCRYPTION_SECRET`
 - `GOOGLE_CALENDAR_CLIENT_SECRET`
 - `GOOGLE_CALENDAR_STATE_SECRET`
@@ -139,7 +144,9 @@ Rotate secrets immediately when exposed or suspected to be exposed.
 
 Recommended routine rotation:
 
-- `ADMIN_API_KEY`: at least every 90 days.
+- `ADMIN_PASSWORD`: at least every 90 days.
+- `ADMIN_SESSION_SECRET`: at least every 90 days; rotating it invalidates
+  existing admin sessions.
 - SMTP credentials: at least every 180 days.
 - Google OAuth client secret: at least annually or when staff access changes.
 - Database and broker credentials: at least annually or when staff access
