@@ -100,6 +100,12 @@ Send the admin session token with:
 Authorization: Bearer your-admin-session-token
 ```
 
+The current authorization model has one deployment-wide admin identity. The
+backend validates the signed session subject against `ADMIN_EMAIL` and attaches
+that authenticated principal to protected requests. Host-scoped admin roles and
+permissions are not implemented yet, so this deployment must not be treated as
+an authorization boundary between unrelated hosts.
+
 Example create request:
 
 ```http

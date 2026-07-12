@@ -4,10 +4,14 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AdminSessionService } from './admin-session.service';
+import {
+  AdminSessionService,
+  type AdminPrincipal,
+} from './admin-session.service';
 
-interface RequestWithHeaders {
+export interface AdminAuthenticatedRequest {
   headers: Record<string, string | string[] | undefined>;
+  admin: AdminPrincipal;
 }
 
 @Injectable()
@@ -15,7 +19,9 @@ export class AdminSessionGuard implements CanActivate {
   constructor(private readonly adminSessionService: AdminSessionService) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<RequestWithHeaders>();
+    const request = context
+      .switchToHttp()
+      .getRequest<AdminAuthenticatedRequest>();
     const bearerToken = getBearerToken(request.headers);
 
     if (!bearerToken) {
@@ -23,7 +29,7 @@ export class AdminSessionGuard implements CanActivate {
     }
 
     try {
-      this.adminSessionService.verifyAccessToken(bearerToken);
+      request.admin = this.adminSessionService.verifyAccessToken(bearerToken);
 
       return true;
     } catch (error) {
@@ -36,7 +42,9 @@ export class AdminSessionGuard implements CanActivate {
   }
 }
 
-function getBearerToken(headers: RequestWithHeaders['headers']): string | null {
+function getBearerToken(
+  headers: AdminAuthenticatedRequest['headers'],
+): string | null {
   const authorizationHeader = getSingleHeaderValue(headers.authorization);
   const bearerPrefix = 'Bearer ';
 

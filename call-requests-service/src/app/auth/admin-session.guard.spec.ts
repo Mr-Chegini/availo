@@ -8,15 +8,15 @@ describe('AdminSessionGuard', () => {
   it('allows requests with a valid admin session bearer token', () => {
     const adminSessionService = createAdminSessionService();
     const guard = new AdminSessionGuard(adminSessionService);
+    const request = { headers: { authorization: 'Bearer session-token' } };
 
-    expect(
-      guard.canActivate(
-        createExecutionContext({ authorization: 'Bearer session-token' }),
-      ),
-    ).toBe(true);
+    expect(guard.canActivate(createExecutionContext(request))).toBe(true);
     expect(adminSessionService.verifyAccessToken).toHaveBeenCalledWith(
       'session-token',
     );
+    expect(request).toMatchObject({
+      admin: { sub: 'admin@example.com' },
+    });
   });
 
   it('rejects requests without an admin session bearer token', () => {
@@ -59,14 +59,15 @@ function createAdminSessionService(
   } as unknown as AdminSessionService;
 }
 
-function createExecutionContext(
-  headers: Record<string, string>,
-): ExecutionContext {
+function createExecutionContext(request: {
+  headers?: Record<string, string>;
+  [key: string]: unknown;
+}): ExecutionContext {
+  const normalizedRequest = request.headers ? request : { headers: request };
+
   return {
     switchToHttp: () => ({
-      getRequest: () => ({
-        headers,
-      }),
+      getRequest: () => normalizedRequest,
     }),
   } as unknown as ExecutionContext;
 }

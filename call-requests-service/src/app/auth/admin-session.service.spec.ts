@@ -47,16 +47,45 @@ describe('AdminSessionService', () => {
       UnauthorizedException,
     );
   });
+
+  it('rejects sessions issued for a previously configured admin', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const values = createConfigValues();
+    const service = new AdminSessionService(createConfigService(values));
+    const result = service.login('admin@availo.local', 'correct-password');
+
+    values.set('ADMIN_EMAIL', 'new-admin@availo.local');
+
+    expect(() => service.verifyAccessToken(result.accessToken)).toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a session whose issue time is in the future', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const service = new AdminSessionService(createConfigService());
+    const result = service.login('admin@availo.local', 'correct-password');
+
+    vi.setSystemTime(new Date('2029-12-31T23:59:59.000Z'));
+
+    expect(() => service.verifyAccessToken(result.accessToken)).toThrow(
+      UnauthorizedException,
+    );
+  });
 });
 
-function createConfigService(): ConfigService {
-  const values = new Map<string, string | number>([
+function createConfigValues(): Map<string, string | number> {
+  return new Map<string, string | number>([
     ['ADMIN_EMAIL', 'admin@availo.local'],
     ['ADMIN_PASSWORD', 'correct-password'],
     ['ADMIN_SESSION_SECRET', 'test-admin-session-secret'],
     ['ADMIN_SESSION_TTL_SECONDS', 28800],
   ]);
+}
 
+function createConfigService(values = createConfigValues()): ConfigService {
   return {
     get: (key: string) => values.get(key),
     getOrThrow: (key: string) => {
