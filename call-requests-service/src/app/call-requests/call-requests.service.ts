@@ -47,6 +47,7 @@ import {
 import { EventTypesService } from '../hosts/event-types.service';
 import { createStructuredLog } from '../logging/structured-log';
 import { MetricsService } from '../metrics/metrics.service';
+import { BookingLockService } from './booking-lock.service';
 
 interface AvailabilityRules {
   hostId?: string;
@@ -89,6 +90,7 @@ export class CallRequestsService {
     private readonly calendarProvider: CalendarProvider,
     private readonly eventTypesService: EventTypesService,
     private readonly metricsService: MetricsService,
+    private readonly bookingLockService: BookingLockService,
   ) {}
 
   async create(dto: CreateCallRequestDto) {
@@ -162,20 +164,25 @@ export class CallRequestsService {
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
 
-    await this.assertTimeRangeAvailable({
-      scheduledAt,
-      durationMinutes: availabilityRules.durationMinutes,
-      hostId: input.publicBookingRoute?.hostId,
-    });
+    const callRequest = await this.bookingLockService.runExclusive(
+      getBookingLockScope(input.publicBookingRoute?.hostId),
+      async () => {
+        await this.assertTimeRangeAvailable({
+          scheduledAt,
+          durationMinutes: availabilityRules.durationMinutes,
+          hostId: input.publicBookingRoute?.hostId,
+        });
 
-    const callRequest = await this.createCallRequest({
-      email,
-      phoneNumber,
-      scheduledAt,
-      durationMinutes: availabilityRules.durationMinutes,
-      meetingLocation: input.meetingLocation,
-      publicBookingRoute: input.publicBookingRoute,
-    });
+        return this.createCallRequest({
+          email,
+          phoneNumber,
+          scheduledAt,
+          durationMinutes: availabilityRules.durationMinutes,
+          meetingLocation: input.meetingLocation,
+          publicBookingRoute: input.publicBookingRoute,
+        });
+      },
+    );
 
     const event: CallRequestedEvent = {
       callRequestId: callRequest.id,
@@ -221,59 +228,64 @@ export class CallRequestsService {
     const { email, phoneNumber, scheduledAt } = input;
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
-    await this.assertTimeRangeAvailable({
-      scheduledAt,
-      durationMinutes: availabilityRules.durationMinutes,
-      hostId: input.publicBookingRoute?.hostId,
-    });
-
-    const calendarEvent = await this.calendarProvider.createEvent(
-      this.toCalendarEventInput(
-        {
-          ...input,
-          calendarOwnerId: input.publicBookingRoute?.hostId,
-        },
-        availabilityRules.durationMinutes,
-      ),
-    );
-
-    try {
-      const callRequest = await this.createCallRequest({
-        email,
-        phoneNumber,
-        scheduledAt,
-        durationMinutes: availabilityRules.durationMinutes,
-        meetingLocation: input.meetingLocation,
-        publicBookingRoute: input.publicBookingRoute,
-        status: CallRequestStatus.SCHEDULED,
-        calendarProviderEventId: calendarEvent.providerEventId,
-      });
-
-      await this.publishCallApproved(callRequest);
-
-      this.metricsService.increment('booking.scheduled');
-
-      this.logger.log(
-        createStructuredLog('call_request.scheduled', {
-          callRequestId: callRequest.id,
-          scheduledAt: callRequest.scheduledAt.toISOString(),
-          autoConfirmed: true,
-          hasPublicBooking: Boolean(toPublicBookingEventContext(callRequest)),
-          hasCalendarEvent: Boolean(callRequest.calendarProviderEventId),
-        }),
-      );
-
-      return callRequest;
-    } catch (error) {
-      if (calendarEvent.providerEventId) {
-        await this.calendarProvider.cancelEvent({
-          providerEventId: calendarEvent.providerEventId,
-          ownerId: input.publicBookingRoute?.hostId,
+    return this.bookingLockService.runExclusive(
+      getBookingLockScope(input.publicBookingRoute?.hostId),
+      async () => {
+        await this.assertTimeRangeAvailable({
+          scheduledAt,
+          durationMinutes: availabilityRules.durationMinutes,
+          hostId: input.publicBookingRoute?.hostId,
         });
-      }
 
-      throw error;
-    }
+        const calendarEvent = await this.calendarProvider.createEvent(
+          this.toCalendarEventInput(
+            {
+              ...input,
+              calendarOwnerId: input.publicBookingRoute?.hostId,
+            },
+            availabilityRules.durationMinutes,
+          ),
+        );
+
+        try {
+          const callRequest = await this.createCallRequest({
+            email,
+            phoneNumber,
+            scheduledAt,
+            durationMinutes: availabilityRules.durationMinutes,
+            meetingLocation: input.meetingLocation,
+            publicBookingRoute: input.publicBookingRoute,
+            status: CallRequestStatus.SCHEDULED,
+            calendarProviderEventId: calendarEvent.providerEventId,
+          });
+
+          await this.publishCallApproved(callRequest);
+          this.metricsService.increment('booking.scheduled');
+          this.logger.log(
+            createStructuredLog('call_request.scheduled', {
+              callRequestId: callRequest.id,
+              scheduledAt: callRequest.scheduledAt.toISOString(),
+              autoConfirmed: true,
+              hasPublicBooking: Boolean(
+                toPublicBookingEventContext(callRequest),
+              ),
+              hasCalendarEvent: Boolean(callRequest.calendarProviderEventId),
+            }),
+          );
+
+          return callRequest;
+        } catch (error) {
+          if (calendarEvent.providerEventId) {
+            await this.calendarProvider.cancelEvent({
+              providerEventId: calendarEvent.providerEventId,
+              ownerId: input.publicBookingRoute?.hostId,
+            });
+          }
+
+          throw error;
+        }
+      },
+    );
   }
 
   private normalizeCreateInput(
@@ -705,33 +717,38 @@ export class CallRequestsService {
     }
 
     this.validateScheduledAt(scheduledAt, availabilityRules);
-    await this.assertTimeRangeAvailable({
-      scheduledAt,
-      durationMinutes: availabilityRules.durationMinutes,
-      hostId: eventType.hostId.toString(),
-      excludeCallRequestId: callRequest.id,
-    });
+    await this.bookingLockService.runExclusive(
+      getBookingLockScope(eventType.hostId.toString()),
+      async () => {
+        await this.assertTimeRangeAvailable({
+          scheduledAt,
+          durationMinutes: availabilityRules.durationMinutes,
+          hostId: eventType.hostId.toString(),
+          excludeCallRequestId: callRequest.id,
+        });
 
-    if (wasScheduled) {
-      await this.updateScheduledCallRequestCalendarEvent(
-        callRequest,
-        scheduledAt,
-        availabilityRules.durationMinutes,
-      );
-    }
+        if (wasScheduled) {
+          await this.updateScheduledCallRequestCalendarEvent(
+            callRequest,
+            scheduledAt,
+            availabilityRules.durationMinutes,
+          );
+        }
 
-    callRequest.scheduledAt = scheduledAt;
-    callRequest.durationMinutes = availabilityRules.durationMinutes;
+        callRequest.scheduledAt = scheduledAt;
+        callRequest.durationMinutes = availabilityRules.durationMinutes;
 
-    try {
-      await callRequest.save();
-    } catch (error) {
-      if (isDuplicateKeyError(error)) {
-        throw new ConflictException('This time slot is already reserved');
-      }
+        try {
+          await callRequest.save();
+        } catch (error) {
+          if (isDuplicateKeyError(error)) {
+            throw new ConflictException('This time slot is already reserved');
+          }
 
-      throw error;
-    }
+          throw error;
+        }
+      },
+    );
 
     this.metricsService.increment('booking.rescheduled');
 
@@ -1171,6 +1188,10 @@ function getCalendarOwnerId(
   callRequest: CallRequestDocument,
 ): string | undefined {
   return callRequest.hostId?.toString() ?? callRequest.publicBookingHostId;
+}
+
+function getBookingLockScope(hostId?: string): string {
+  return hostId ? `host:${hostId}` : 'legacy-global';
 }
 
 function getBookingOwnershipEventContext(

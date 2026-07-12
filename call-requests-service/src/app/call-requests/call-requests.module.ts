@@ -10,6 +10,8 @@ import { HostsModule } from '../hosts/hosts.module';
 import { AuthModule } from '../auth/auth.module';
 import { RateLimitModule } from '../rate-limit/rate-limit.module';
 import { MetricsModule } from '../metrics/metrics.module';
+import { BookingLock, BookingLockSchema } from './booking-lock.schema';
+import { BookingLockService } from './booking-lock.service';
 
 @Module({
   imports: [
@@ -17,6 +19,10 @@ import { MetricsModule } from '../metrics/metrics.module';
       {
         name: CallRequest.name,
         schema: CallRequestSchema,
+      },
+      {
+        name: BookingLock.name,
+        schema: BookingLockSchema,
       },
     ]),
     MessagingModule,
@@ -27,7 +33,7 @@ import { MetricsModule } from '../metrics/metrics.module';
     MetricsModule,
   ],
   controllers: [CallRequestsController, PublicBookingAvailabilityController],
-  providers: [CallRequestsService],
+  providers: [CallRequestsService, BookingLockService],
   exports: [CallRequestsService],
 })
 export class CallRequestsModule {}

@@ -12,6 +12,7 @@ import type { CallRequestDocument } from './call-request.schema';
 import type { CalendarProvider } from '../calendar/calendar-provider';
 import type { EventTypesService } from '../hosts/event-types.service';
 import type { MetricsService } from '../metrics/metrics.service';
+import type { BookingLockService } from './booking-lock.service';
 
 const SCHEDULED_AT = new Date('2026-05-15T07:00:00.000Z');
 const CREATED_AT = new Date('2026-05-10T07:00:00.000Z');
@@ -64,6 +65,9 @@ describe('CallRequestsService', () => {
   let metricsService: {
     increment: ReturnType<typeof vi.fn>;
   };
+  let bookingLockService: {
+    runExclusive: ReturnType<typeof vi.fn>;
+  };
   let service: CallRequestsService;
 
   beforeEach(() => {
@@ -90,6 +94,12 @@ describe('CallRequestsService', () => {
     metricsService = {
       increment: vi.fn(),
     };
+    bookingLockService = {
+      runExclusive: vi.fn(
+        async (_scope: string, operation: () => Promise<unknown>) =>
+          operation(),
+      ),
+    };
     mockAvailabilityCallRequests([]);
 
     service = new CallRequestsService(
@@ -98,6 +108,7 @@ describe('CallRequestsService', () => {
       calendarProvider as unknown as CalendarProvider,
       eventTypesService as unknown as EventTypesService,
       metricsService as unknown as MetricsService,
+      bookingLockService as unknown as BookingLockService,
     );
   });
 
