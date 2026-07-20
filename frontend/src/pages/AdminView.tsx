@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react';
 import {
   approveCallRequest,
   cancelCallRequest,
+  type CalendarConnection,
   type CallRequest,
+  getCalendarConnections,
   getCallRequests,
   loginAdmin,
   markCallAsCalled,
   rejectCallRequest,
+  startGoogleCalendarConnection,
   updateAdminNote,
 } from '../api/callRequestsApi';
 
@@ -31,12 +34,18 @@ export function AdminView() {
     readStoredAdminSession(),
   );
   const [callRequests, setCallRequests] = useState<CallRequest[]>([]);
+  const [calendarConnections, setCalendarConnections] = useState<
+    CalendarConnection[]
+  >([]);
   const [notesById, setNotesById] = useState<Record<string, string>>({});
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingCalendars, setIsLoadingCalendars] = useState(false);
+  const [isStartingGoogleConnection, setIsStartingGoogleConnection] =
+    useState(false);
 
   async function loadCallRequests(activeSession = session) {
     if (!activeSession) {
@@ -70,9 +79,32 @@ export function AdminView() {
     }
   }
 
+  async function loadCalendarConnections(activeSession = session) {
+    if (!activeSession) {
+      return;
+    }
+
+    try {
+      setMessage('');
+      setIsLoadingCalendars(true);
+      setCalendarConnections(
+        await getCalendarConnections(activeSession.accessToken),
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to load calendar connections.',
+      );
+    } finally {
+      setIsLoadingCalendars(false);
+    }
+  }
+
   useEffect(() => {
     if (session) {
       void loadCallRequests(session);
+      void loadCalendarConnections(session);
     }
   }, [session]);
 
@@ -115,8 +147,48 @@ export function AdminView() {
     clearStoredAdminSession();
     setSession(null);
     setCallRequests([]);
+    setCalendarConnections([]);
     setNotesById({});
     setMessage('');
+  }
+
+  async function handleConnectGoogle() {
+    if (!session) {
+      return;
+    }
+
+    const googleWindow = window.open('about:blank', '_blank');
+
+    if (!googleWindow) {
+      setMessage(
+        'Allow pop-ups for this site, then try connecting Google Calendar again.',
+      );
+      return;
+    }
+
+    try {
+      setMessage('');
+      setIsStartingGoogleConnection(true);
+
+      const { authorizationUrl } = await startGoogleCalendarConnection(
+        session.accessToken,
+      );
+      googleWindow.opener = null;
+      googleWindow.location.href = authorizationUrl;
+
+      setMessage(
+        'Complete Google authorization in the new tab, then refresh calendar connections.',
+      );
+    } catch (error) {
+      googleWindow.close();
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Failed to start Google Calendar connection.',
+      );
+    } finally {
+      setIsStartingGoogleConnection(false);
+    }
   }
 
   async function runAction(
@@ -269,6 +341,68 @@ export function AdminView() {
 
       {message && <p className="message">{message}</p>}
 
+      <section className="admin-section" aria-labelledby="calendar-heading">
+        <div className="admin-section-header">
+          <div>
+            <h2 className="section-title" id="calendar-heading">
+              Calendar connections
+            </h2>
+            <p className="section-description">
+              Connect the default host account to Google Calendar for busy-time
+              checks and scheduled events.
+            </p>
+          </div>
+
+          <div className="action-row">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => void handleConnectGoogle()}
+              disabled={isStartingGoogleConnection}
+            >
+              {isStartingGoogleConnection
+                ? 'Opening Google...'
+                : 'Connect Google Calendar'}
+            </button>
+
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => void loadCalendarConnections()}
+              disabled={isLoadingCalendars}
+            >
+              {isLoadingCalendars ? 'Refreshing...' : 'Refresh connections'}
+            </button>
+          </div>
+        </div>
+
+        {calendarConnections.length === 0 ? (
+          <p className="empty-state">
+            {isLoadingCalendars
+              ? 'Loading calendar connections...'
+              : 'No active calendar connections.'}
+          </p>
+        ) : (
+          <div className="calendar-list">
+            {calendarConnections.map((connection) => (
+              <article key={connection.id} className="calendar-card">
+                <div>
+                  <strong className="calendar-provider">
+                    {formatCalendarProvider(connection.provider)}
+                  </strong>
+                  <p className="calendar-account">
+                    {connection.providerAccountId}
+                  </p>
+                </div>
+                <span className="status-badge">
+                  {connection.isActive ? 'ACTIVE' : 'INACTIVE'}
+                </span>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
       {callRequests.length === 0 ? (
         <p style={{ marginTop: '20px' }}>No call requests found.</p>
       ) : (
@@ -376,6 +510,14 @@ export function AdminView() {
       )}
     </section>
   );
+}
+
+function formatCalendarProvider(provider: CalendarConnection['provider']) {
+  if (provider === 'google') {
+    return 'Google Calendar';
+  }
+
+  return provider;
 }
 
 function readStoredAdminSession(): AdminSession | null {

@@ -55,6 +55,20 @@ export interface AdminLoginResponse {
   expiresAt: string;
 }
 
+export interface CalendarConnection {
+  id: string;
+  provider: 'local' | 'google' | 'microsoft' | 'caldav';
+  providerAccountId: string;
+  primaryCalendarId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StartCalendarConnectionResponse {
+  authorizationUrl: string;
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const contentType = response.headers.get('content-type');
@@ -137,6 +151,30 @@ export async function getCallRequests(
   });
 
   return parseJsonResponse<CallRequest[]>(response);
+}
+
+export async function getCalendarConnections(
+  accessToken: string,
+): Promise<CalendarConnection[]> {
+  const response = await fetch(`${API_BASE_URL}/calendar-connections`, {
+    headers: getAdminHeaders(accessToken),
+  });
+
+  return parseJsonResponse<CalendarConnection[]>(response);
+}
+
+export async function startGoogleCalendarConnection(
+  accessToken: string,
+): Promise<StartCalendarConnectionResponse> {
+  const response = await fetch(
+    `${API_BASE_URL}/calendar-connections/google/start`,
+    {
+      method: 'POST',
+      headers: getAdminHeaders(accessToken),
+    },
+  );
+
+  return parseJsonResponse<StartCalendarConnectionResponse>(response);
 }
 
 export async function approveCallRequest(

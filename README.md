@@ -187,13 +187,16 @@ Views:
   - Approve/reject requests
   - Mark scheduled calls as called/canceled
   - Edit admin notes
+  - List active calendar connections
+  - Start the default host's Google Calendar connection flow
 
 The frontend calls the Call Requests Service API.
 
 For local admin usage, sign in from the Admin View with `ADMIN_EMAIL` and
 `ADMIN_PASSWORD` from the Call Requests Service environment. The frontend stores
 the returned bearer session token in browser session storage and sends it on
-protected admin API calls.
+protected admin API calls. Google Calendar authorization opens in a new tab;
+after completing it, return to the Admin View and refresh calendar connections.
 
 ## Shared Types
 
